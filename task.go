@@ -17,12 +17,13 @@ type ExecuteArgs struct {
 	Spec            int                    // 定时时长
 	AddTime         time.Time              // 任务添加时间
 	LastExecuteTime time.Time              // 任务最后执行时间
+	Time            int                    // 方法被执行次数
 	Error           error                  // 方法执行错误信息
 	Res             map[string]interface{} // 方法执行结果
 }
 
 type objtask struct {
-	Key string                                  // 任务标识key
+	Key  string                                 // 任务标识key
 	Task func() (map[string]interface{}, error) // 任务方法
 	Spec int                                    // 定时时长
 }
@@ -33,6 +34,7 @@ type TaskInfo struct {
 	Task func() (map[string]interface{}, error) // 任务方法
 	AddTime         time.Time                   // 任务添加时间
 	LastExecuteTime time.Time                   // 任务最后执行时间
+	Time            int                         // 方法被执行次数
 }
 
 type BanInfo struct {
@@ -92,7 +94,7 @@ func (t *ReadyHandleTable) runClear() {
 			// 执行回调
 			for _, cb := range t.executeCallBack {
 				ti := t.TaskInfo[c.Key]
-				cb(ExecuteArgs{Key: ti.Key, Spec: ti.Spec, AddTime: ti.AddTime, LastExecuteTime: ti.LastExecuteTime, Error: err, Res: mp})
+				cb(ExecuteArgs{Key: ti.Key, Spec: ti.Spec, AddTime: ti.AddTime, LastExecuteTime: ti.LastExecuteTime, Error: err, Res: mp, Time: ti.Time})
 			}
 			t.l.Unlock()
 			break
@@ -133,19 +135,12 @@ func (t *ReadyHandleTable) add(key string, task func() (map[string]interface{}, 
 			case <-done:
 				// 接收到任务停止信号 取消任务
 				ticker.Stop()
-				// 取消成功
-				// 更新状态表
-				t.updateTableInfoCancel(key)
-				// 取消成功触发回调方法
-				for _, cb := range t.cancelCallBack {
-					cb(ProcessArgs{key, time.Now()})
-				}
 			}
 		}
 	}()
 	// 添加任务成功
 	// 更新状态表
-	t.updateTableInfoAdd(key, t.TaskInfo[key].Spec, t.TaskInfo[key].Task)
+	t.updateTableInfoAdd(key, second, task)
 	// 触发回调
 	for _, cb := range t.addCallBack {
 		cb(ProcessArgs{key, time.Now()})
@@ -161,7 +156,13 @@ func (t *ReadyHandleTable) cancel(key string) (error) {
 		return errors.New(fmt.Sprintf("cancel-task is not running, key = %s\r\n", key))
 	} else {
 		delete(t.m, key)
-		close(v)
+		close(v)// 取消成功
+		// 更新状态表
+		t.updateTableInfoCancel(key)
+		// 取消成功触发回调方法
+		for _, cb := range t.cancelCallBack {
+			cb(ProcessArgs{key, time.Now()})
+		}
 		return nil
 	}
 }
@@ -199,6 +200,26 @@ func (t *ReadyHandleTable) unBan(key string) (error) {
 	}
 }
 
+// 添加任务时更新任务信息表的状态
+func (t *ReadyHandleTable) updateTableInfoAdd(key string, second int, task func() (map[string]interface{}, error)) {
+	t.TaskInfo[key] = TaskInfo{Key: key, Spec: second, Task: task, AddTime: time.Now()}
+}
+
+// 执行任务时更新任务信息表的状态
+func (t *ReadyHandleTable) updateTableInfoExecute(key string) {
+	ti, ok := t.TaskInfo[key]
+	if ok {
+		ti.Time += 1
+		ti.LastExecuteTime = time.Now()
+		t.TaskInfo[key] = ti
+	}
+}
+
+// 取消任务时更新任务信息表的状态
+func (t *ReadyHandleTable) updateTableInfoCancel(key string) {
+	delete(t.TaskInfo, key)
+}
+
 // 添加任务取消回调
 func (t *ReadyHandleTable) AddCancelCallBack(cb func(ProcessArgs)) {
 	t.cancelCallBack = append(t.cancelCallBack, cb)
@@ -223,26 +244,6 @@ func (t *ReadyHandleTable) AddBanCallBack(cb func(ProcessArgs)) {
 func (t *ReadyHandleTable) AddUnBanCallBack(cb func(ProcessArgs)) {
 	t.unBanCallBack = append(t.unBanCallBack, cb)
 }
-
-// 添加任务时更新任务信息表的状态
-func (t *ReadyHandleTable) updateTableInfoAdd(key string, second int, task func() (map[string]interface{}, error)) {
-	t.TaskInfo[key] = TaskInfo{Key: key, Spec: second, Task: task, AddTime: time.Now()}
-}
-
-// 执行任务时更新任务信息表的状态
-func (t *ReadyHandleTable) updateTableInfoExecute(key string) {
-	ti, ok := t.TaskInfo[key]
-	if ok {
-		ti.LastExecuteTime = time.Now()
-		t.TaskInfo[key] = ti
-	}
-}
-
-// 取消任务时更新任务信息表的状态
-func (t *ReadyHandleTable) updateTableInfoCancel(key string) {
-	delete(t.TaskInfo, key)
-}
-
 
 // 查看任务是否存在
 func (t *ReadyHandleTable) Get(key string) (chan struct{}, bool) {
@@ -278,8 +279,10 @@ func (t *ReadyHandleTable) StopAndBan(key string) {
 func (t *ReadyHandleTable) Restart(key string) {
 	t.l.Lock()
 	defer t.l.Unlock()
+	task := t.TaskInfo[key].Task
+	spec := t.TaskInfo[key].Spec
 	t.cancel(key)
-	t.add(key, t.TaskInfo[key].Task, t.TaskInfo[key].Spec)
+	t.add(key, task, spec)
 }
 
 // 解除禁用任务+不执行
