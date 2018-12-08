@@ -5,10 +5,15 @@ import (
 	"time"
 	"errors"
 	"fmt"
+	"github.com/mohae/deepcopy"
 )
+/*
+	因为不是同一个线程处理的问题 所以有可能在cancel回调之后任务还会执行一段时间
+	知道cancel信号到达执行任务的线程并且处理完毕 任务才会停止执行
+ */
 
 const (
-	unitTime = time.Millisecond * 1
+	unitTime = time.Millisecond * 1000
 )
 
 type ProcessArgs struct {
@@ -94,23 +99,28 @@ func (t *ReadyHandleTable) runClear() {
 		// 从任务执行管道中获取一个任务方法
 		// 管道为空时会阻塞
 		case c := <-t.ready:
-			t.l.Lock()
-			// 执行方法
-			mp, err := c.Task()
-			// 执行方法成功
-			// 执行任务时更新任务信息表的状态
-			ti, ok := t.TaskInfo[c.Key]
-			if ok {
-				ti.Time += 1
-				ti.LastExecuteTime = time.Now()
-				t.TaskInfo[c.Key] = ti
-			}
-			// 执行回调
-			for _, cb := range t.executeCallBack {
-				ti := t.TaskInfo[c.Key]
-				cb(ExecuteArgs{Key: ti.Key, Spec: ti.Spec, AddTime: ti.AddTime, LastExecuteTime: ti.LastExecuteTime, Error: err, Res: mp, Time: ti.Time})
-			}
-			t.l.Unlock()
+			func() {
+				t.l.Lock()
+				defer t.l.Unlock()
+				if _, ok := t.get(c.Key); !ok {
+					return
+				}
+				// 执行方法
+				mp, err := c.Task()
+				// 执行方法成功
+				// 执行任务时更新任务信息表的状态
+				ti, ok := t.TaskInfo[c.Key]
+				if ok {
+					ti.Time += 1
+					ti.LastExecuteTime = time.Now()
+					t.TaskInfo[c.Key] = ti
+				}
+				// 执行回调
+				for _, cb := range t.executeCallBack {
+					ti := t.TaskInfo[c.Key]
+					cb(ExecuteArgs{Key: ti.Key, Spec: ti.Spec, AddTime: ti.AddTime, LastExecuteTime: ti.LastExecuteTime, Error: err, Res: mp, Time: ti.Time})
+				}
+			}()
 			break
 		}
 	}
@@ -148,15 +158,11 @@ func (t *ReadyHandleTable) add(key string, task func() (map[string]interface{}, 
 				break
 			case <-done:
 				t.l.Lock()
-
 				// 接收到任务停止信号 取消任务
 				ticker.Stop()
-				// 取消任务时更新任务信息表的状态
-				delete(t.TaskInfo, key)
-				// 取消成功触发回调方法
-				for _, cb := range t.cancelCallBack {
-					cb(ProcessArgs{key, time.Now()})
-				}
+				// 任务正式取消成功 该不会再任务执行
+
+
 				t.l.Unlock()
 				// 退出线程
 				return
@@ -181,7 +187,13 @@ func (t *ReadyHandleTable) cancel(key string) (error) {
 		return errors.New(fmt.Sprintf("cancel-task is not running, key = %s\r\n", key))
 	} else {
 		delete(t.m, key)
-		close(v) // 取消成功
+		close(v) // 取消信号发送成功
+		// 取消信号发送成功时更新任务信息表的状态
+		delete(t.TaskInfo, key)
+		// 取消信号发送成功成功触发回调方法
+		for _, cb := range t.cancelCallBack {
+			cb(ProcessArgs{key, time.Now()})
+		}
 		return nil
 	}
 }
@@ -277,6 +289,7 @@ func (t *ReadyHandleTable) StopAndBan(key string) {
 
 // 重启服务
 // 取消任务和启动任务各触发一次
+// 任务存在才能重启 配置照旧
 func (t *ReadyHandleTable) Restart(key string) {
 	t.l.Lock()
 	defer t.l.Unlock()
@@ -309,12 +322,16 @@ func (t *ReadyHandleTable) IsBan(key string) bool {
 func (t *ReadyHandleTable) GetTaskInfo() (map[string]TaskInfo) {
 	t.l.RLock()
 	defer t.l.RUnlock()
-	return t.TaskInfo
+	v := deepcopy.Copy(t.TaskInfo)
+	r,_ := v.(map[string]TaskInfo)
+	return r
 }
 
 // 获取被禁任务的信息
 func (t *ReadyHandleTable) GetBanInfo() (map[string]BanInfo) {
 	t.l.RLock()
 	defer t.l.RUnlock()
-	return t.BanInfo
+	v := deepcopy.Copy(t.BanInfo)
+	r,_ := v.(map[string]BanInfo)
+	return r
 }
