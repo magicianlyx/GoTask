@@ -7,13 +7,14 @@ import (
 	"fmt"
 	"github.com/mohae/deepcopy"
 )
+
 /*
 	因为不是同一个线程处理的问题 所以有可能在cancel回调之后任务还会执行一段时间
 	知道cancel信号到达执行任务的线程并且处理完毕 任务才会停止执行
  */
 
 const (
-	unitTime = time.Millisecond * 1000
+	unitTime = time.Millisecond * 1
 )
 
 type ProcessArgs struct {
@@ -29,6 +30,7 @@ type ExecuteArgs struct {
 	Time            int                    // 方法被执行次数
 	Error           error                  // 方法执行错误信息
 	Res             map[string]interface{} // 方法执行结果
+	RoutineId       int                    // 执行该方法的线程id
 }
 type objtask struct {
 	Key  string                                 // 任务标识key
@@ -50,79 +52,79 @@ type BanInfo struct {
 	BanTime time.Time // 任务禁止时间
 }
 
-type TableInfo struct {
-	TaskInfo map[string]TaskInfo
-	BanInfo  map[string]BanInfo
-}
-
 type CallBack struct {
-	cancelCallBack  []func(ProcessArgs) // 取消任务回调
-	executeCallBack []func(ExecuteArgs) // 执行任务回调
-	addCallBack     []func(ProcessArgs) // 添加任务回调
-	banCallBack     []func(ProcessArgs) // 禁封任务回调
-	unBanCallBack   []func(ProcessArgs) // 解封任务回调
 }
 
 // 定时任务处理表
 type ReadyHandleTable struct {
-	TableInfo
-	m     map[string]chan struct{} // 用于停止任务的 任务key存在时，m的key也存在
-	ready chan objtask             // 任务方法
-	l     sync.RWMutex             // 线程锁
-	CallBack
+	m               map[string]chan struct{} // 用于停止任务的 任务key存在时，m的key也存在
+	ready           chan objtask             // 任务方法
+	l               sync.RWMutex             // 线程锁
+	cancelCallBack  []func(ProcessArgs)      // 取消任务回调
+	executeCallBack []func(ExecuteArgs)      // 执行任务回调
+	addCallBack     []func(ProcessArgs)      // 添加任务回调
+	banCallBack     []func(ProcessArgs)      // 禁封任务回调
+	unBanCallBack   []func(ProcessArgs)      // 解封任务回调
+	taskInfo        map[string]TaskInfo      // 任务信息
+	banInfo         map[string]BanInfo       // 禁封键信息
+	routineCount    int                      // 线程数
 }
 
-func InitTaskRoutine() *ReadyHandleTable {
-	t := &ReadyHandleTable{
-		TableInfo: TableInfo{
-			TaskInfo: make(map[string]TaskInfo),
-			BanInfo:  make(map[string]BanInfo),
-		},
-		m:     make(map[string]chan struct{}),
-		ready: make(chan objtask),
-		CallBack: CallBack{
-			cancelCallBack:  []func(ProcessArgs){},
-			executeCallBack: []func(ExecuteArgs){},
-			addCallBack:     []func(ProcessArgs){},
-			banCallBack:     []func(ProcessArgs){},
-			unBanCallBack:   []func(ProcessArgs){},
-		},
+func InitTaskRoutine(routineCount int) *ReadyHandleTable {
+	if routineCount < 1 {
+		routineCount = 10
 	}
-	go t.runClear()
+	t := &ReadyHandleTable{
+		taskInfo:        make(map[string]TaskInfo),
+		banInfo:         make(map[string]BanInfo),
+		m:               make(map[string]chan struct{}),
+		ready:           make(chan objtask),
+		cancelCallBack:  []func(ProcessArgs){},
+		executeCallBack: []func(ExecuteArgs){},
+		addCallBack:     []func(ProcessArgs){},
+		banCallBack:     []func(ProcessArgs){},
+		unBanCallBack:   []func(ProcessArgs){},
+		routineCount:    routineCount,
+	}
+	t.runClear()
 	return t
 }
 
 // 阻塞执行清除任务，等待准备信号
 func (t *ReadyHandleTable) runClear() {
-	for {
-		select {
-		// 从任务执行管道中获取一个任务方法
-		// 管道为空时会阻塞
-		case c := <-t.ready:
-			func() {
-				t.l.Lock()
-				defer t.l.Unlock()
-				if _, ok := t.get(c.Key); !ok {
-					return
+	for i := 0; i < t.routineCount; i++ {
+		go func(i int) {
+			for {
+				select {
+				// 从任务执行管道中获取一个任务方法
+				// 管道为空时会阻塞
+				case c := <-t.ready:
+					func() {
+						t.l.Lock()
+						defer t.l.Unlock()
+						if _, ok := t.get(c.Key); !ok {
+							return
+						}
+						// 执行方法
+						mp, err := c.Task()
+						// 执行方法成功
+						// 执行任务时更新任务信息表的状态
+						ti, ok := t.taskInfo[c.Key]
+						if ok {
+							ti.Time += 1
+							ti.LastExecuteTime = time.Now()
+							t.taskInfo[c.Key] = ti
+						}
+						// 执行回调
+						for _, cb := range t.executeCallBack {
+							ti := t.taskInfo[c.Key]
+							cb(ExecuteArgs{ti.Key, ti.Spec, ti.AddTime, ti.LastExecuteTime, ti.Time, err, mp, i})
+						}
+					}()
+					break
 				}
-				// 执行方法
-				mp, err := c.Task()
-				// 执行方法成功
-				// 执行任务时更新任务信息表的状态
-				ti, ok := t.TaskInfo[c.Key]
-				if ok {
-					ti.Time += 1
-					ti.LastExecuteTime = time.Now()
-					t.TaskInfo[c.Key] = ti
-				}
-				// 执行回调
-				for _, cb := range t.executeCallBack {
-					ti := t.TaskInfo[c.Key]
-					cb(ExecuteArgs{Key: ti.Key, Spec: ti.Spec, AddTime: ti.AddTime, LastExecuteTime: ti.LastExecuteTime, Error: err, Res: mp, Time: ti.Time})
-				}
-			}()
-			break
-		}
+			}
+		}(i)
 	}
 }
 
@@ -162,7 +164,6 @@ func (t *ReadyHandleTable) add(key string, task func() (map[string]interface{}, 
 				ticker.Stop()
 				// 任务正式取消成功 该不会再任务执行
 
-
 				t.l.Unlock()
 				// 退出线程
 				return
@@ -171,7 +172,7 @@ func (t *ReadyHandleTable) add(key string, task func() (map[string]interface{}, 
 	}()
 	// 添加任务成功
 	// 添加任务时更新任务信息表的状态
-	t.TaskInfo[key] = TaskInfo{Key: key, Spec: second, Task: task, AddTime: time.Now()}
+	t.taskInfo[key] = TaskInfo{Key: key, Spec: second, Task: task, AddTime: time.Now()}
 	// 触发回调
 	for _, cb := range t.addCallBack {
 		cb(ProcessArgs{key, time.Now()})
@@ -189,7 +190,7 @@ func (t *ReadyHandleTable) cancel(key string) (error) {
 		delete(t.m, key)
 		close(v) // 取消信号发送成功
 		// 取消信号发送成功时更新任务信息表的状态
-		delete(t.TaskInfo, key)
+		delete(t.taskInfo, key)
 		// 取消信号发送成功成功触发回调方法
 		for _, cb := range t.cancelCallBack {
 			cb(ProcessArgs{key, time.Now()})
@@ -201,7 +202,7 @@ func (t *ReadyHandleTable) cancel(key string) (error) {
 // 任务已经被禁封时返回error
 func (t *ReadyHandleTable) ban(key string) (error) {
 	if !t.isBan(key) {
-		t.BanInfo[key] = BanInfo{key, time.Now()}
+		t.banInfo[key] = BanInfo{key, time.Now()}
 		// 禁封成功
 		// 触发禁封回调
 		for _, cb := range t.banCallBack {
@@ -214,7 +215,7 @@ func (t *ReadyHandleTable) ban(key string) (error) {
 }
 
 func (t *ReadyHandleTable) isBan(key string) bool {
-	_, ok := t.BanInfo[key]
+	_, ok := t.banInfo[key]
 	return ok
 }
 
@@ -222,7 +223,7 @@ func (t *ReadyHandleTable) isBan(key string) bool {
 func (t *ReadyHandleTable) unBan(key string) (error) {
 	if t.isBan(key) {
 		// 解封方法
-		delete(t.BanInfo, key)
+		delete(t.banInfo, key)
 		// 触发回调
 		for _, cb := range t.unBanCallBack {
 			cb(ProcessArgs{Key: key, Time: time.Now()})
@@ -295,8 +296,8 @@ func (t *ReadyHandleTable) Restart(key string) {
 	defer t.l.Unlock()
 	// 任务存在才能重启
 	if _, ok := t.get(key); ok {
-		task := t.TaskInfo[key].Task
-		spec := t.TaskInfo[key].Spec
+		task := t.taskInfo[key].Task
+		spec := t.taskInfo[key].Spec
 		t.cancel(key)
 		t.add(key, task, spec)
 	} else {
@@ -322,8 +323,8 @@ func (t *ReadyHandleTable) IsBan(key string) bool {
 func (t *ReadyHandleTable) GetTaskInfo() (map[string]TaskInfo) {
 	t.l.RLock()
 	defer t.l.RUnlock()
-	v := deepcopy.Copy(t.TaskInfo)
-	r,_ := v.(map[string]TaskInfo)
+	v := deepcopy.Copy(t.taskInfo)
+	r, _ := v.(map[string]TaskInfo)
 	return r
 }
 
@@ -331,7 +332,7 @@ func (t *ReadyHandleTable) GetTaskInfo() (map[string]TaskInfo) {
 func (t *ReadyHandleTable) GetBanInfo() (map[string]BanInfo) {
 	t.l.RLock()
 	defer t.l.RUnlock()
-	v := deepcopy.Copy(t.BanInfo)
-	r,_ := v.(map[string]BanInfo)
+	v := deepcopy.Copy(t.banInfo)
+	r, _ := v.(map[string]BanInfo)
 	return r
 }
