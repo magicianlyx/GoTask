@@ -116,10 +116,11 @@ func (t *ReadyHandleTable) runClear() {
 							t.taskInfo[c.Key] = ti
 						}
 						// 执行回调
-						for _, cb := range t.executeCallBack {
-							ti := t.taskInfo[c.Key]
-							cb(ExecuteArgs{ti.Key, ti.Spec, ti.AddTime, ti.LastExecuteTime, ti.Time, err, mp, i})
-						}
+						go func(key string, spec int, addTime time.Time, lastExecuteTime time.Time, count int, err error, mp map[string]interface{}, i int) {
+							for _, cb := range t.executeCallBack {
+								cb(ExecuteArgs{key, spec, addTime, lastExecuteTime, count, err, mp, i})
+							}
+						}(ti.Key, ti.Spec, ti.AddTime, ti.LastExecuteTime, ti.Time, err, mp, i)
 					}()
 					break
 				}
@@ -174,9 +175,11 @@ func (t *ReadyHandleTable) add(key string, task func() (map[string]interface{}, 
 	// 添加任务时更新任务信息表的状态
 	t.taskInfo[key] = TaskInfo{Key: key, Spec: second, Task: task, AddTime: time.Now()}
 	// 触发回调
-	for _, cb := range t.addCallBack {
-		cb(ProcessArgs{key, time.Now()})
-	}
+	go func(key string, now time.Time) {
+		for _, cb := range t.addCallBack {
+			cb(ProcessArgs{key, now})
+		}
+	}(key, time.Now())
 	return nil
 }
 
@@ -192,9 +195,11 @@ func (t *ReadyHandleTable) cancel(key string) (error) {
 		// 取消信号发送成功时更新任务信息表的状态
 		delete(t.taskInfo, key)
 		// 取消信号发送成功成功触发回调方法
-		for _, cb := range t.cancelCallBack {
-			cb(ProcessArgs{key, time.Now()})
-		}
+		go func(key string, now time.Time) {
+			for _, cb := range t.cancelCallBack {
+				cb(ProcessArgs{key, now})
+			}
+		}(key, time.Now())
 		return nil
 	}
 }
@@ -205,9 +210,11 @@ func (t *ReadyHandleTable) ban(key string) (error) {
 		t.banInfo[key] = BanInfo{key, time.Now()}
 		// 禁封成功
 		// 触发禁封回调
-		for _, cb := range t.banCallBack {
-			cb(ProcessArgs{Key: key, Time: time.Now()})
-		}
+		go func(key string, now time.Time) {
+			for _, cb := range t.banCallBack {
+				cb(ProcessArgs{key, now})
+			}
+		}(key, time.Now())
 		return nil
 	} else {
 		return errors.New(fmt.Sprintf("task prohibited, can not ban again, key = %s\r\n", key))
@@ -225,9 +232,11 @@ func (t *ReadyHandleTable) unBan(key string) (error) {
 		// 解封方法
 		delete(t.banInfo, key)
 		// 触发回调
-		for _, cb := range t.unBanCallBack {
-			cb(ProcessArgs{Key: key, Time: time.Now()})
-		}
+		go func(key string, now time.Time) {
+			for _, cb := range t.unBanCallBack {
+				cb(ProcessArgs{key, now})
+			}
+		}(key, time.Now())
 		return nil
 	} else {
 		return errors.New(fmt.Sprintf("unban task, key = %s\r\n", key))
