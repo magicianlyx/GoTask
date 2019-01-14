@@ -4,6 +4,7 @@ import (
 	"sync"
 	"errors"
 	"time"
+	"fmt"
 )
 
 var (
@@ -24,6 +25,7 @@ type TimedTask struct {
 	addCallback     []AddCallback
 	cancelCallback  []CancelCallback
 	executeCallback []ExecuteCallback
+	// singleValue     int64
 }
 
 func NewTimedTask(routineCount int) (*TimedTask) {
@@ -36,6 +38,7 @@ func NewTimedTask(routineCount int) (*TimedTask) {
 		[]AddCallback{},
 		[]CancelCallback{},
 		[]ExecuteCallback{},
+		// 0,
 	}
 	tt.goExecutor()
 	tt.goTimedIssue()
@@ -51,7 +54,6 @@ func (tt *TimedTask) AddCancelCallback(cb CancelCallback) {
 func (tt *TimedTask) AddExecuteCallback(cb ExecuteCallback) {
 	tt.executeCallback = append(tt.executeCallback, cb)
 }
-
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
 		for _, cb := range tt.addCallback {
@@ -87,7 +89,7 @@ func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
 
 func (tt *TimedTask) Add(key string, task TaskObj, spec int) {
 	err := tt.add(key, task, spec)
-	nti := tt.tMap.Get(key)
+	nti := NewTaskInfo(key, task, spec)
 	tt.invokeAddCallback(nti, err)
 }
 
@@ -126,7 +128,12 @@ func (tt *TimedTask) goTimedIssue() {
 				<-tt.refreshSign
 				continue
 			}
-			spec := task.LastTime.Add(time.Duration(task.Spec) * time.Second).Sub(time.Now())
+			var spec time.Duration
+			if task.LastTime.IsZero() {
+				spec = task.AddTime.Add(time.Duration(task.Spec) * time.Second).Sub(time.Now())
+			} else {
+				spec = task.LastTime.Add(time.Duration(task.Spec) * time.Second).Sub(time.Now())
+			}
 			if spec.Nanoseconds() < 0 {
 				spec = time.Nanosecond
 			}
@@ -148,13 +155,23 @@ func (tt *TimedTask) goTimedIssue() {
 
 func (tt *TimedTask) updateMapAfterExec(task *TaskInfo) {
 	task.Count += 1
-	task.LastTime = task.LastTime.Add(time.Duration(task.Spec) * time.Second)
+	if task.LastTime.IsZero() {
+		task.LastTime = task.AddTime.Add(time.Duration(task.Spec) * time.Second)
+	} else {
+		task.LastTime = task.LastTime.Add(time.Duration(task.Spec) * time.Second)
+	}
 	tt.tMap.Set(task.Key, task)
 }
 
 // 触发更新定时最早一个被执行的定时任务
 func (tt *TimedTask) reSelectAfterUpdate() {
+	// if atomic.LoadInt64(&tt.singleValue) > 0 {
+	// 	return
+	// }
+	// atomic.AddInt64(&tt.singleValue, 1)
+	// defer atomic.AddInt64(&tt.singleValue, -1)
 	go func() {
+		fmt.Println("刷新任务")
 		tt.refreshSign <- struct{}{}
 	}()
 }

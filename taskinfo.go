@@ -9,7 +9,7 @@ type TaskObj func() (map[string]interface{}, error)
 type TaskInfo struct {
 	Key      string    // 任务标志key
 	Task     TaskObj   // 任务
-	LastTime time.Time // 最后一次执行任务的时间
+	LastTime time.Time // 最后一次执行任务的时间（未执行过时为time.Time{}）
 	AddTime  time.Time // 任务添加的时间
 	Count    int       // 任务执行次数
 	Spec     int       // 任务执行时间间隔
@@ -33,7 +33,7 @@ func NewTaskInfo(key string, task TaskObj, spec int) *TaskInfo {
 	return &TaskInfo{
 		Key:      key,
 		Task:     task,
-		LastTime: now,
+		LastTime: time.Time{},
 		AddTime:  now,
 		Count:    0,
 		Spec:     spec,

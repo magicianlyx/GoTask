@@ -54,3 +54,47 @@ func TestTimedTask(t *testing.T) {
 	time.Sleep(time.Hour)
 	
 }
+
+func TestRecursionCall(t *testing.T) {
+	tt := NewTimedTask(10)
+	
+	tt.Add("B", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
+		return nil, nil
+	}, 3)
+	
+	tt.AddExecuteCallback(func(info *TaskInfo, res map[string]interface{}, err error) {
+		if info.Key == "B" && info.Count >= 3 {
+			tt.Cancel("B")
+		}
+	})
+	
+	tt.AddCancelCallback(func(key string, err error) {
+		fmt.Println("cancel timed task: ", key)
+	})
+	
+	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
+	time.Sleep(time.Hour)
+}
+
+func TestReAdd(t *testing.T) {
+	tt := NewTimedTask(10)
+	
+	tt.AddAddCallback(func(info *TaskInfo, err error) {
+		if err != nil {
+			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", info.Key, err))
+		} else {
+			fmt.Println(fmt.Sprintf("add task: %s", info.Key))
+		}
+	})
+	tt.Add("B", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
+		return nil, nil
+	}, 3)
+	tt.Add("B", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
+		return nil, nil
+	}, 3)
+	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
+	time.Sleep(time.Hour)
+}

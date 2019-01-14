@@ -60,7 +60,26 @@ func (tm *TaskMap) SelectNextExec() *TaskInfo {
 		if !ok {
 			return true
 		}
-		if minv == nil || minv.LastTime.Add(time.Duration(minv.Spec) * time.Second).UnixNano() > v.LastTime.Add(time.Duration(v.Spec) * time.Second).UnixNano() {
+		if minv == nil {
+			minv = v
+			return true
+		}
+		
+		var vlt time.Time
+		if v.LastTime.IsZero() {
+			vlt = v.AddTime
+		} else {
+			vlt = v.LastTime
+		}
+		
+		var mlt time.Time
+		if minv.LastTime.IsZero() {
+			mlt = minv.AddTime
+		} else {
+			mlt = minv.LastTime
+		}
+		
+		if mlt.Add(time.Duration(minv.Spec) * time.Second).UnixNano() > vlt.Add(time.Duration(v.Spec) * time.Second).UnixNano() {
 			minv = v
 		}
 		return true
