@@ -153,5 +153,6 @@ type executeCallback func(*ExecuteCbArgs)
 	// 6秒后取消B
 	time.Sleep(time.Second * 10)
 	tt.Cancel("B")
-	
+
+	time.Sleep(time.Hour)
 ```
