@@ -3,7 +3,6 @@ package GoTaskv1
 import (
 	"errors"
 	"time"
-	"fmt"
 	"sync/atomic"
 )
 
@@ -169,7 +168,6 @@ func (tt *TimedTask) reSelectAfterUpdate() {
 	atomic.AddInt64(&tt.singleValue, 1)
 	defer atomic.AddInt64(&tt.singleValue, -1)
 	go func() {
-		fmt.Println("刷新任务")
 		tt.refreshSign <- struct{}{}
 	}()
 }

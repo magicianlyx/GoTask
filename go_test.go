@@ -70,7 +70,11 @@ func TestRecursionCall(t *testing.T) {
 	})
 	
 	tt.AddCancelCallback(func(args *CancelCbArgs) {
-		fmt.Println("cancel timed task: ", args.key)
+		if args.Error == nil {
+			fmt.Println("cancel timed task: ", args.Key)
+		} else {
+			fmt.Println(fmt.Sprintf("cancel timed task:%s ,error msg: %s", args.Key, args.Error))
+		}
 	})
 	
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
@@ -80,6 +84,7 @@ func TestRecursionCall(t *testing.T) {
 func TestReAdd(t *testing.T) {
 	tt := NewTimedTask(10)
 	
+	// 添加添加任务回调
 	tt.AddAddCallback(func(args *AddCbArgs) {
 		if args.Error != nil {
 			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", args.Key, args.Error))
@@ -87,14 +92,43 @@ func TestReAdd(t *testing.T) {
 			fmt.Println(fmt.Sprintf("add task: %s", args.Key))
 		}
 	})
+	
+	// 添加取消任务回调
+	tt.AddCancelCallback(func(args *CancelCbArgs) {
+		if args.Error == nil {
+			fmt.Println("cancel timed task: ", args.Key)
+		} else {
+			fmt.Println(fmt.Sprintf("cancel timed task:%s ,error msg: %s", args.Key, args.Error))
+		}
+	})
+	
+	// 添加任务B
 	tt.Add("B", func() (map[string]interface{}, error) {
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `B`")
 		return nil, nil
-	}, 3)
-	tt.Add("B", func() (map[string]interface{}, error) {
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
+	}, 1)
+	
+	// 添加任务A
+	tt.Add("A", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
 		return nil, nil
-	}, 3)
+	}, 2)
+	
+	// 重复添加任务A
+	tt.Add("A", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
+		return nil, nil
+	}, 2)
+	
+	// 打印时间
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
-	time.Sleep(time.Hour)
+	
+	// 6秒后取消A
+	time.Sleep(time.Second * 6)
+	tt.Cancel("A")
+	
+	// 6秒后取消B
+	time.Sleep(time.Second * 10)
+	tt.Cancel("B")
+	
 }

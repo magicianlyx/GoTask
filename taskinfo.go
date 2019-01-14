@@ -8,7 +8,7 @@ type TaskObj func() (map[string]interface{}, error)
 
 type TaskInfo struct {
 	Key      string    `json:"key"`       // 任务标志key
-	Task     TaskObj   `json:"-"`         // 任务 
+	Task     TaskObj   `json:"-"`         // 任务方法
 	LastTime time.Time `json:"last_time"` // 最后一次执行任务的时间（未执行过时为time.Time{}）
 	AddTime  time.Time `json:"add_time"`  // 任务添加的时间
 	Count    int       `json:"count"`     // 任务执行次数
@@ -52,6 +52,6 @@ type AddCbArgs struct {
 }
 
 type CancelCbArgs struct {
-	key   string
+	Key   string
 	Error error
 }
