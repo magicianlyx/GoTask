@@ -13,7 +13,7 @@ var (
 
 type AddCallback func(info *TaskInfo, err error)
 type CancelCallback func(key string, err error)
-type ExecuteCallback func(info *TaskInfo, res map[string]interface{}, err error)
+type ExecuteCallback func(info *TaskInfo, res map[string]string, err error)
 
 type TimedTask struct {
 	l               sync.RWMutex
@@ -68,7 +68,7 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	}()
 }
 
-func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error) {
+func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]string, err error) {
 	go func() {
 		for _, cb := range tt.executeCallback {
 			cb(info, res, err)
@@ -80,17 +80,14 @@ func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
 	if tt.tMap.IsExist(key) {
 		return ErrTaskIsExist
 	}
-	NewTaskInfo(key, task, spec)
+	nti := NewTaskInfo(key, task, spec)
+	tt.tMap.Add(key, nti)
 	tt.reSelectAfterUpdate()
 	return nil
 }
 
 func (tt *TimedTask) Add(key string, task TaskObj, spec int) {
-	err := tt.add(key, task, spec)
-	nti := tt.tMap.Get(key)
-	// tt.invokeAddCallback(nti, err)
-	_ = err
-	_ = nti
+	tt.add(key, task, spec)
 }
 
 func (tt *TimedTask) cancel(key string) error {
@@ -103,8 +100,7 @@ func (tt *TimedTask) cancel(key string) error {
 }
 
 func (tt *TimedTask) Cancel(key string) {
-	err := tt.cancel(key)
-	tt.invokeCancelCallback(key, err)
+	tt.cancel(key)
 }
 
 func (tt *TimedTask) goExecutor() {
@@ -113,9 +109,8 @@ func (tt *TimedTask) goExecutor() {
 			for {
 				ti := <-tt.tasks
 				res, err := ti.Task()
-				// tt.invokeExecuteCallback(ti, res, err)
-				_ = err
 				_ = res
+				_ = err
 			}
 		}(i)
 	}
