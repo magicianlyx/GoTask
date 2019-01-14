@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # gotaskv1
 
 go定时任务工具库
@@ -156,3 +157,7 @@ type executeCallback func(*ExecuteCbArgs)
 
 	time.Sleep(time.Hour)
 ```
+=======
+go 编写的定时循环任务 库
+
+>>>>>>> b7e9f4a27060bb030a6fcc2815d01212a6737236
