@@ -92,9 +92,9 @@ type executeCallback func(*ExecuteCbArgs)
 
 ### Demo
 ```
-    tt := NewTimedTask(10)
+	tt := NewTimedTask(10)
 
-    // 添加添加任务回调
+	// 添加添加任务回调
 	tt.AddAddCallback(func(args *AddCbArgs) {
 		if args.Error != nil {
 			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", args.Key, args.Error))
@@ -103,7 +103,14 @@ type executeCallback func(*ExecuteCbArgs)
 		}
 	})
 
-    // 添加取消任务回调
+	// 让C任务执行10次后取消
+	tt.AddExecuteCallback(func(args *ExecuteCbArgs) {
+		if args.Key == "C" && args.Count == 10 {
+			tt.Cancel("C")
+		}
+	})
+
+	// 添加取消任务回调
 	tt.AddCancelCallback(func(args *CancelCbArgs) {
 		if args.Error == nil {
 			fmt.Println("cancel timed task: ", args.Key)
@@ -112,25 +119,31 @@ type executeCallback func(*ExecuteCbArgs)
 		}
 	})
 
-    // 添加任务B
+	// 添加任务A
+	tt.Add("A", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
+		return nil, nil
+	}, 2)
+
+	// 重复添加任务A
+	tt.Add("A", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
+		return nil, nil
+	}, 2)
+
+	// 添加任务B
 	tt.Add("B", func() (map[string]interface{}, error) {
 		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `B`")
 		return nil, nil
 	}, 1)
 
-    // 添加任务A
-	tt.Add("A", func() (map[string]interface{}, error) {
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
+	// 添加任务C
+	tt.Add("C", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `C`")
 		return nil, nil
-	}, 2)
+	}, 3)
 
-    // 重复添加任务A
-	tt.Add("A", func() (map[string]interface{}, error) {
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
-		return nil, nil
-	}, 2)
-
-    // 打印时间
+	// 打印时间
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
 
 	// 6秒后取消A
@@ -140,6 +153,5 @@ type executeCallback func(*ExecuteCbArgs)
 	// 6秒后取消B
 	time.Sleep(time.Second * 10)
 	tt.Cancel("B")
-
-
+	
 ```
