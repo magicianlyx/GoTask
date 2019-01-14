@@ -1,10 +1,10 @@
 package GoTaskv1
 
 import (
-	"sync"
 	"errors"
 	"time"
 	"fmt"
+	"sync/atomic"
 )
 
 var (
@@ -12,52 +12,50 @@ var (
 	ErrTaskIsNotExist = errors.New("task is not exist")
 )
 
-type AddCallback func(info *TaskInfo, err error)
-type CancelCallback func(key string, err error)
-type ExecuteCallback func(info *TaskInfo, res map[string]interface{}, err error)
+type addCallback func(*AddCbArgs)
+type cancelCallback func(*CancelCbArgs)
+type executeCallback func(*ExecuteCbArgs)
 
 type TimedTask struct {
-	l               sync.RWMutex
-	tMap            *TaskMap
+	tMap            *taskMap
 	tasks           chan *TaskInfo
 	refreshSign     chan struct{}
 	routineCount    int
-	addCallback     []AddCallback
-	cancelCallback  []CancelCallback
-	executeCallback []ExecuteCallback
-	// singleValue     int64
+	addCallback     []addCallback
+	cancelCallback  []cancelCallback
+	executeCallback []executeCallback
+	singleValue     int64
 }
 
 func NewTimedTask(routineCount int) (*TimedTask) {
 	tt := &TimedTask{
-		sync.RWMutex{},
-		NewTaskMap(),
+		newtaskMap(),
 		make(chan *TaskInfo),
 		make(chan struct{}),
 		routineCount,
-		[]AddCallback{},
-		[]CancelCallback{},
-		[]ExecuteCallback{},
-		// 0,
+		[]addCallback{},
+		[]cancelCallback{},
+		[]executeCallback{},
+		0,
 	}
 	tt.goExecutor()
 	tt.goTimedIssue()
 	return tt
 }
 
-func (tt *TimedTask) AddAddCallback(cb AddCallback) {
+func (tt *TimedTask) AddAddCallback(cb func(*AddCbArgs)) {
 	tt.addCallback = append(tt.addCallback, cb)
 }
-func (tt *TimedTask) AddCancelCallback(cb CancelCallback) {
+func (tt *TimedTask) AddCancelCallback(cb func(*CancelCbArgs)) {
 	tt.cancelCallback = append(tt.cancelCallback, cb)
 }
-func (tt *TimedTask) AddExecuteCallback(cb ExecuteCallback) {
+func (tt *TimedTask) AddExecuteCallback(cb func(*ExecuteCbArgs)) {
 	tt.executeCallback = append(tt.executeCallback, cb)
 }
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
 		for _, cb := range tt.addCallback {
-			cb(info, err)
+			cb(&AddCbArgs{info, err})
 		}
 	}()
 }
@@ -65,7 +63,7 @@ func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	go func() {
 		for _, cb := range tt.cancelCallback {
-			cb(key, err)
+			cb(&CancelCbArgs{key, err})
 		}
 	}()
 }
@@ -73,31 +71,31 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error) {
 	go func() {
 		for _, cb := range tt.executeCallback {
-			cb(info, res, err)
+			cb(&ExecuteCbArgs{info, res, err})
 		}
 	}()
 }
 
 func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
-	if tt.tMap.IsExist(key) {
+	if tt.tMap.isExist(key) {
 		return ErrTaskIsExist
 	}
-	tt.tMap.Add(key, NewTaskInfo(key, task, spec))
+	tt.tMap.add(key, newTaskInfo(key, task, spec))
 	tt.reSelectAfterUpdate()
 	return nil
 }
 
 func (tt *TimedTask) Add(key string, task TaskObj, spec int) {
 	err := tt.add(key, task, spec)
-	nti := NewTaskInfo(key, task, spec)
+	nti := newTaskInfo(key, task, spec)
 	tt.invokeAddCallback(nti, err)
 }
 
 func (tt *TimedTask) cancel(key string) error {
-	if !tt.tMap.IsExist(key) {
+	if !tt.tMap.isExist(key) {
 		return ErrTaskIsNotExist
 	}
-	tt.tMap.Delete(key)
+	tt.tMap.delete(key)
 	tt.reSelectAfterUpdate()
 	return nil
 }
@@ -122,7 +120,7 @@ func (tt *TimedTask) goExecutor() {
 func (tt *TimedTask) goTimedIssue() {
 	go func() {
 		for {
-			task := tt.tMap.SelectNextExec()
+			task := tt.tMap.selectNextExec()
 			if task == nil {
 				// 任务列表中没有任务 等待刷新信号来到后 重新选择任务
 				<-tt.refreshSign
@@ -160,16 +158,16 @@ func (tt *TimedTask) updateMapAfterExec(task *TaskInfo) {
 	} else {
 		task.LastTime = task.LastTime.Add(time.Duration(task.Spec) * time.Second)
 	}
-	tt.tMap.Set(task.Key, task)
+	tt.tMap.set(task.Key, task)
 }
 
 // 触发更新定时最早一个被执行的定时任务
 func (tt *TimedTask) reSelectAfterUpdate() {
-	// if atomic.LoadInt64(&tt.singleValue) > 0 {
-	// 	return
-	// }
-	// atomic.AddInt64(&tt.singleValue, 1)
-	// defer atomic.AddInt64(&tt.singleValue, -1)
+	if atomic.LoadInt64(&tt.singleValue) > 0 {
+		return
+	}
+	atomic.AddInt64(&tt.singleValue, 1)
+	defer atomic.AddInt64(&tt.singleValue, -1)
 	go func() {
 		fmt.Println("刷新任务")
 		tt.refreshSign <- struct{}{}
@@ -178,5 +176,5 @@ func (tt *TimedTask) reSelectAfterUpdate() {
 
 // 获取定时任务列表信息
 func (tt *TimedTask) GetTimedTaskInfo() map[string]*TaskInfo {
-	return tt.tMap.GetAll()
+	return tt.tMap.getAll()
 }

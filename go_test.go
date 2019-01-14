@@ -20,7 +20,7 @@ func TestClone(*testing.T) {
 	t := &TaskInfo{
 		Key: "123",
 	}
-	tc := t.Clone()
+	tc := t.clone()
 	fmt.Printf("%v\r\n", ToJson(tc))
 }
 
@@ -63,14 +63,14 @@ func TestRecursionCall(t *testing.T) {
 		return nil, nil
 	}, 3)
 	
-	tt.AddExecuteCallback(func(info *TaskInfo, res map[string]interface{}, err error) {
-		if info.Key == "B" && info.Count >= 3 {
+	tt.AddExecuteCallback(func(args *ExecuteCbArgs) {
+		if args.Key == "B" && args.Count >= 3 {
 			tt.Cancel("B")
 		}
 	})
 	
-	tt.AddCancelCallback(func(key string, err error) {
-		fmt.Println("cancel timed task: ", key)
+	tt.AddCancelCallback(func(args *CancelCbArgs) {
+		fmt.Println("cancel timed task: ", args.key)
 	})
 	
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
@@ -80,11 +80,11 @@ func TestRecursionCall(t *testing.T) {
 func TestReAdd(t *testing.T) {
 	tt := NewTimedTask(10)
 	
-	tt.AddAddCallback(func(info *TaskInfo, err error) {
-		if err != nil {
-			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", info.Key, err))
+	tt.AddAddCallback(func(args *AddCbArgs) {
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", args.Key, args.Error))
 		} else {
-			fmt.Println(fmt.Sprintf("add task: %s", info.Key))
+			fmt.Println(fmt.Sprintf("add task: %s", args.Key))
 		}
 	})
 	tt.Add("B", func() (map[string]interface{}, error) {
