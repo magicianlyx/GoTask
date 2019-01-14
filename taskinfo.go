@@ -2,7 +2,6 @@ package GoTaskv1
 
 import (
 	"time"
-	"reflect"
 )
 
 type TaskObj func() (map[string]interface{}, error)
@@ -19,11 +18,12 @@ type TaskInfo struct {
 // 生成副本
 func (t *TaskInfo) Clone() *TaskInfo {
 	rt := &TaskInfo{}
-	tv := reflect.ValueOf(t).Elem()
-	rtv := reflect.ValueOf(rt).Elem()
-	for i := 0; i < tv.NumField(); i++ {
-		rtv.Field(i).Set(tv.Field(i))
-	}
+	rt.Key = t.Key
+	rt.Task = t.Task
+	rt.LastTime = t.LastTime
+	rt.AddTime = t.AddTime
+	rt.Count = t.Count
+	rt.Spec = t.Spec
 	return rt
 }
 
@@ -33,7 +33,7 @@ func NewTaskInfo(key string, task TaskObj, spec int) *TaskInfo {
 	return &TaskInfo{
 		Key:      key,
 		Task:     task,
-		LastTime: time.Time{},
+		LastTime: now,
 		AddTime:  now,
 		Count:    0,
 		Spec:     spec,

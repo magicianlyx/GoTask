@@ -65,5 +65,25 @@ func (tm *TaskMap) SelectNextExec() *TaskInfo {
 		}
 		return true
 	})
+	if minv == nil {
+		return nil
+	}
 	return minv.Clone()
+}
+
+func (tm *TaskMap) GetAll() map[string]*TaskInfo {
+	m := map[string]*TaskInfo{}
+	tm.tMap.Range(func(key, value interface{}) bool {
+		k, ok := key.(string)
+		if !ok {
+			return true
+		}
+		v, ok := value.(*TaskInfo)
+		if !ok {
+			return true
+		}
+		m[k] = v
+		return true
+	})
+	return m
 }
