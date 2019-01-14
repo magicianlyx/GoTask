@@ -93,6 +93,13 @@ func TestReAdd(t *testing.T) {
 		}
 	})
 	
+	// 让C任务执行10次后取消
+	tt.AddExecuteCallback(func(args *ExecuteCbArgs) {
+		if args.Key == "C" && args.Count == 10 {
+			tt.Cancel("C")
+		}
+	})
+	
 	// 添加取消任务回调
 	tt.AddCancelCallback(func(args *CancelCbArgs) {
 		if args.Error == nil {
@@ -101,12 +108,6 @@ func TestReAdd(t *testing.T) {
 			fmt.Println(fmt.Sprintf("cancel timed task:%s ,error msg: %s", args.Key, args.Error))
 		}
 	})
-	
-	// 添加任务B
-	tt.Add("B", func() (map[string]interface{}, error) {
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `B`")
-		return nil, nil
-	}, 1)
 	
 	// 添加任务A
 	tt.Add("A", func() (map[string]interface{}, error) {
@@ -119,6 +120,18 @@ func TestReAdd(t *testing.T) {
 		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
 		return nil, nil
 	}, 2)
+	
+	// 添加任务B
+	tt.Add("B", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `B`")
+		return nil, nil
+	}, 1)
+	
+	// 添加任务C
+	tt.Add("C", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `C`")
+		return nil, nil
+	}, 3)
 	
 	// 打印时间
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
