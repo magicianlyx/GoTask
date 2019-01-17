@@ -67,10 +67,10 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	}()
 }
 
-func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error) {
+func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error, rid int) {
 	go func() {
 		for _, cb := range tt.executeCallback {
-			cb(&ExecuteCbArgs{info, res, err})
+			cb(&ExecuteCbArgs{info, res, err, rid})
 		}
 	}()
 }
@@ -110,7 +110,7 @@ func (tt *TimedTask) goExecutor() {
 			for {
 				ti := <-tt.tasks
 				res, err := ti.Task()
-				tt.invokeExecuteCallback(ti, res, err)
+				tt.invokeExecuteCallback(ti, res, err, rid)
 			}
 		}(i)
 	}

@@ -42,8 +42,9 @@ func newTaskInfo(key string, task TaskObj, spec int) *TaskInfo {
 
 type ExecuteCbArgs struct {
 	*TaskInfo
-	Res   map[string]interface{}
-	Error error
+	Res       map[string]interface{}
+	Error     error
+	RoutineId int
 }
 
 type AddCbArgs struct {
