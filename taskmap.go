@@ -8,7 +8,6 @@ import (
 type taskMap struct {
 	tMap         sync.Map
 	tasks        chan *TaskInfo
-	routineCount int
 }
 
 func newtaskMap() *taskMap {

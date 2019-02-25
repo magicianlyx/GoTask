@@ -4,11 +4,14 @@ import (
 	"errors"
 	"time"
 	"sync/atomic"
+	"sync"
 )
 
 var (
 	ErrTaskIsExist    = errors.New("task is exist")
 	ErrTaskIsNotExist = errors.New("task is not exist")
+	ErrTaskIsBan      = errors.New("task is ban")
+	ErrTaskIsUnBan    = errors.New("task is already unban")
 )
 
 type addCallback func(*AddCbArgs)
@@ -16,8 +19,10 @@ type cancelCallback func(*CancelCbArgs)
 type executeCallback func(*ExecuteCbArgs)
 
 type TimedTask struct {
-	tMap            *taskMap
-	tasks           chan *TaskInfo
+	l               sync.Mutex
+	tMap            *taskMap       // 定时任务字典
+	bMap            *Set           // 被禁止添加执行的key
+	tasks           chan *TaskInfo // 即将被执行的任务通道
 	refreshSign     chan struct{}
 	routineCount    int
 	addCallback     []addCallback
@@ -28,7 +33,9 @@ type TimedTask struct {
 
 func NewTimedTask(routineCount int) (*TimedTask) {
 	tt := &TimedTask{
+		sync.Mutex{},
 		newtaskMap(),
+		NewSet(),
 		make(chan *TaskInfo),
 		make(chan struct{}),
 		routineCount,
@@ -75,6 +82,10 @@ func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interf
 	}()
 }
 
+func (tt *TimedTask) isExist(key string) (bool) {
+	return tt.tMap.isExist(key)
+}
+
 func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
 	if tt.tMap.isExist(key) {
 		return ErrTaskIsExist
@@ -102,6 +113,32 @@ func (tt *TimedTask) cancel(key string) error {
 func (tt *TimedTask) Cancel(key string) {
 	err := tt.cancel(key)
 	tt.invokeCancelCallback(key, err)
+}
+
+func (tt *TimedTask) ban(key string, error) {
+	if tt.isBan(key) {
+	
+	}
+}
+
+func (tt *TimedTask) Ban(key string) {
+	if tt.isBan(key) {
+		return
+	} else {
+		tt.l.Lock()
+		defer tt.l.Unlock()
+		tt.cancel(key)
+		tt.bMap.Add(key)
+	}
+	
+}
+
+func (tt *TimedTask) UnBan(key string) {
+	if
+}
+
+func (tt *TimedTask) isBan(key string) (bool) {
+	return tt.bMap.IsExist(key)
 }
 
 func (tt *TimedTask) goExecutor() {
