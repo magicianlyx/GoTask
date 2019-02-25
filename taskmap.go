@@ -101,7 +101,7 @@ func (tm *taskMap) getAll() map[string]*TaskInfo {
 		if !ok {
 			return true
 		}
-		m[k] = v
+		m[k] = v.clone()
 		return true
 	})
 	return m
