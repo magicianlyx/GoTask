@@ -7,21 +7,14 @@ import (
 
 type funcMap struct {
 	fmap    sync.Map
-	typedef reflect.Type
 }
 
 func newFuncMap() *funcMap {
-	return &funcMap{sync.Map{}, nil}
+	return &funcMap{sync.Map{}}
 }
 
 func (fm *funcMap) add(i interface{}) {
-	t := reflect.TypeOf(i)
 	p := reflect.ValueOf(i).Pointer()
-	if fm.typedef != nil && fm.typedef != t {
-		return
-	} else if fm.typedef == nil {
-		fm.typedef = t
-	}
 	fm.fmap.Store(p, i)
 }
 
