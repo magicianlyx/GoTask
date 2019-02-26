@@ -28,11 +28,11 @@ type TimedTask struct {
 	tasks           chan *TaskInfo // 即将被执行的任务通道
 	refreshSign     chan struct{}
 	routineCount    int
-	addCallback     []addCallback
-	cancelCallback  []cancelCallback
-	executeCallback []executeCallback
-	banCallback     []banCallback
-	unBanCallback   []unBanCallback
+	addCallback     *funcMap
+	cancelCallback  *funcMap
+	executeCallback *funcMap
+	banCallback     *funcMap
+	unBanCallback   *funcMap
 	singleValue     int64
 }
 
@@ -44,11 +44,11 @@ func NewTimedTask(routineCount int) (*TimedTask) {
 		make(chan *TaskInfo),
 		make(chan struct{}),
 		routineCount,
-		[]addCallback{},
-		[]cancelCallback{},
-		[]executeCallback{},
-		[]banCallback{},
-		[]unBanCallback{},
+		newFuncMap(),
+		newFuncMap(),
+		newFuncMap(),
+		newFuncMap(),
+		newFuncMap(),
 		0,
 	}
 	tt.goExecutor()
@@ -57,24 +57,46 @@ func NewTimedTask(routineCount int) (*TimedTask) {
 }
 
 func (tt *TimedTask) AddAddCallback(cb func(*AddCbArgs)) {
-	tt.addCallback = append(tt.addCallback, cb)
+	tt.addCallback.add(cb)
 }
+
+func (tt *TimedTask) DelAddCallback(cb func(*AddCbArgs)) {
+	tt.addCallback.del(cb)
+}
+
 func (tt *TimedTask) AddCancelCallback(cb func(*CancelCbArgs)) {
-	tt.cancelCallback = append(tt.cancelCallback, cb)
+	tt.cancelCallback.add(cb)
 }
+
+func (tt *TimedTask) DelCancelCallback(cb func(*CancelCbArgs)) {
+	tt.cancelCallback.del(cb)
+}
+
 func (tt *TimedTask) AddExecuteCallback(cb func(*ExecuteCbArgs)) {
-	tt.executeCallback = append(tt.executeCallback, cb)
+	tt.executeCallback.add(cb)
+}
+func (tt *TimedTask) DelExecuteCallback(cb func(*ExecuteCbArgs)) {
+	tt.executeCallback.del(cb)
 }
 func (tt *TimedTask) AddBanCallback(cb func(*BanCbArgs)) {
-	tt.banCallback = append(tt.banCallback, cb)
+	tt.banCallback.add(cb)
+}
+func (tt *TimedTask) DelBanCallback(cb func(*BanCbArgs)) {
+	tt.banCallback.del(cb)
 }
 func (tt *TimedTask) AddUnBanCallback(cb func(*UnBanCbArgs)) {
-	tt.unBanCallback = append(tt.unBanCallback, cb)
+	tt.unBanCallback.add(cb)
+}
+
+func (tt *TimedTask) DelUnBanCallback(cb func(*UnBanCbArgs)) {
+	tt.unBanCallback.del(cb)
 }
 
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
-		for _, cb := range tt.addCallback {
+		addCallbacks := []addCallback{}
+		tt.addCallback.getAll(&addCallbacks)
+		for _, cb := range addCallbacks {
 			cb(&AddCbArgs{info, err})
 		}
 	}()
@@ -82,7 +104,9 @@ func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 
 func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	go func() {
-		for _, cb := range tt.cancelCallback {
+		cancelCallbacks := []cancelCallback{}
+		tt.cancelCallback.getAll(&cancelCallbacks)
+		for _, cb := range cancelCallbacks {
 			cb(&CancelCbArgs{key, err})
 		}
 	}()
@@ -90,7 +114,9 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 
 func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error, rid int) {
 	go func() {
-		for _, cb := range tt.executeCallback {
+		executeCallbacks := []executeCallback{}
+		tt.executeCallback.getAll(&executeCallbacks)
+		for _, cb := range executeCallbacks {
 			cb(&ExecuteCbArgs{info, res, err, rid})
 		}
 	}()
@@ -98,7 +124,9 @@ func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interf
 
 func (tt *TimedTask) invokeBanCallback(key string, err error) {
 	go func() {
-		for _, cb := range tt.banCallback {
+		banCallbacks := []banCallback{}
+		tt.banCallback.getAll(&banCallbacks)
+		for _, cb := range banCallbacks {
 			cb(&BanCbArgs{key, err})
 		}
 	}()
@@ -106,7 +134,9 @@ func (tt *TimedTask) invokeBanCallback(key string, err error) {
 
 func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
 	go func() {
-		for _, cb := range tt.unBanCallback {
+		unBanCallbacks := []unBanCallback{}
+		tt.unBanCallback.getAll(&unBanCallbacks)
+		for _, cb := range unBanCallbacks {
 			cb(&UnBanCbArgs{key, err})
 		}
 	}()
