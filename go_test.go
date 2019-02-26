@@ -58,11 +58,6 @@ func TestTimedTask(t *testing.T) {
 func TestRecursionCall(t *testing.T) {
 	tt := NewTimedTask(10)
 	
-	tt.Add("B", func() (map[string]interface{}, error) {
-		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
-		return nil, nil
-	}, 3)
-	
 	tt.AddExecuteCallback(func(args *ExecuteCbArgs) {
 		if args.Key == "B" && args.Count >= 3 {
 			tt.Cancel("B")
@@ -76,6 +71,11 @@ func TestRecursionCall(t *testing.T) {
 			fmt.Println(fmt.Sprintf("cancel timed task:%s ,error msg: %s", args.Key, args.Error))
 		}
 	})
+	
+	tt.Add("B", func() (map[string]interface{}, error) {
+		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "BBBBB")
+		return nil, nil
+	}, 3)
 	
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
 	time.Sleep(time.Hour)
@@ -143,6 +143,78 @@ func TestReAdd(t *testing.T) {
 	// 6秒后取消B
 	time.Sleep(time.Second * 10)
 	tt.Cancel("B")
+	
+	time.Sleep(time.Hour)
+	
+}
+
+func TestBan(t *testing.T) {
+	tt := NewTimedTask(10)
+	
+	tt.AddExecuteCallback(func(args *ExecuteCbArgs) {
+		
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("exec task: %s ,error msg: %s", args.Key, args.Error))
+		} else {
+			fmt.Println(fmt.Sprintf("exec task: %s  ,  %s", args.Key, args.LastTime.Format("2006-01-02 15:04:05")))
+		}
+	})
+	
+	// 添加添加任务回调
+	tt.AddAddCallback(func(args *AddCbArgs) {
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", args.Key, args.Error))
+		} else {
+			fmt.Println(fmt.Sprintf("add task: %s", args.Key))
+		}
+	})
+	
+	tt.AddBanCallback(func(args *BanCbArgs) {
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("add ban task: %s ,error msg: %s", args.Key, args.Error))
+		} else {
+			fmt.Println(fmt.Sprintf("add ban task: %s", args.Key))
+		}
+	})
+	
+	key := "AAA"
+	tt.Ban(key)
+	
+	tt.Add(key, func() (map[string]interface{}, error) {
+		return nil, nil
+	}, 2)
+	
+	tt.UnBan(key)
+	
+	tt.Add(key, func() (map[string]interface{}, error) {
+		return nil, nil
+	}, 2)
+	
+	tt.tMap.tMap.Range(func(key, value interface{}) bool {
+		fmt.Println(key)
+		return true
+	})
+	
+	time.Sleep(10 * time.Second)
+	tt.Ban(key)
+	
+	time.Sleep(time.Hour)
+}
+
+func TestAddCallBack(t *testing.T) {
+	
+	tt := NewTimedTask(10)
+	tt.AddAddCallback(func(args *AddCbArgs) {
+		fmt.Println(fmt.Sprintf("add ban task: %s", args.Key))
+	})
+	
+	tt.Add("A", func() (map[string]interface{}, error) {
+		return nil, nil
+	}, 1)
+	
+	tt.Add("B", func() (map[string]interface{}, error) {
+		return nil, nil
+	}, 1)
 	
 	time.Sleep(time.Hour)
 	

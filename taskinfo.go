@@ -56,3 +56,9 @@ type CancelCbArgs struct {
 	Key   string
 	Error error
 }
+
+type BanCbArgs struct {
+	Key   string
+	Error error
+}
+type UnBanCbArgs BanCbArgs
