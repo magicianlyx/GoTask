@@ -32,15 +32,15 @@ func (fm *funcMap) del(i interface{}) {
 
 func (fm *funcMap) getAll(out interface{}) int {
 	ro := reflect.ValueOf(out).Elem()
-	e0 := make([]reflect.Value, 0)
+	eo := make([]reflect.Value, 0)
 	
 	n := 0
 	
 	fm.fmap.Range(func(key, value interface{}) bool {
 		n += 1
-		e0 = append(e0, reflect.ValueOf(value))
+		eo = append(eo, reflect.ValueOf(value))
 		return true
 	})
-	ro.Set(reflect.Append(ro, e0...))
+	ro.Set(reflect.Append(ro, eo...))
 	return n
 }

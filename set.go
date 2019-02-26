@@ -6,7 +6,7 @@ import (
 	"net"
 )
 
-// 无序集合
+// 无序集合 线程安全
 type Set struct {
 	s sync.Map
 }
