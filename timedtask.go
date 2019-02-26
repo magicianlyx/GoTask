@@ -18,6 +18,9 @@ type addCallback func(*AddCbArgs)
 type cancelCallback func(*CancelCbArgs)
 type executeCallback func(*ExecuteCbArgs)
 
+type banCallback func(*BanCbArgs)
+type unBanCallback func(*UnBanCbArgs)
+
 type TimedTask struct {
 	l               sync.Mutex
 	tMap            *taskMap       // 定时任务字典
@@ -28,6 +31,8 @@ type TimedTask struct {
 	addCallback     []addCallback
 	cancelCallback  []cancelCallback
 	executeCallback []executeCallback
+	banCallback     []banCallback
+	unBanCallback   []unBanCallback
 	singleValue     int64
 }
 
@@ -42,6 +47,8 @@ func NewTimedTask(routineCount int) (*TimedTask) {
 		[]addCallback{},
 		[]cancelCallback{},
 		[]executeCallback{},
+		[]banCallback{},
+		[]unBanCallback{},
 		0,
 	}
 	tt.goExecutor()
@@ -58,6 +65,13 @@ func (tt *TimedTask) AddCancelCallback(cb func(*CancelCbArgs)) {
 func (tt *TimedTask) AddExecuteCallback(cb func(*ExecuteCbArgs)) {
 	tt.executeCallback = append(tt.executeCallback, cb)
 }
+func (tt *TimedTask) AddBanCallback(cb func(*BanCbArgs)) {
+	tt.banCallback = append(tt.banCallback, cb)
+}
+func (tt *TimedTask) AddUnBanCallback(cb func(*UnBanCbArgs)) {
+	tt.unBanCallback = append(tt.unBanCallback, cb)
+}
+
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
 		for _, cb := range tt.addCallback {
@@ -82,6 +96,22 @@ func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interf
 	}()
 }
 
+func (tt *TimedTask) invokeBanCallback(key string, err error) {
+	go func() {
+		for _, cb := range tt.banCallback {
+			cb(&BanCbArgs{key, err})
+		}
+	}()
+}
+
+func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
+	go func() {
+		for _, cb := range tt.unBanCallback {
+			cb(&UnBanCbArgs{key, err})
+		}
+	}()
+}
+
 func (tt *TimedTask) isExist(key string) (bool) {
 	return tt.tMap.isExist(key)
 }
@@ -89,6 +119,9 @@ func (tt *TimedTask) isExist(key string) (bool) {
 func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
 	if tt.tMap.isExist(key) {
 		return ErrTaskIsExist
+	}
+	if tt.isBan(key) {
+		return ErrTaskIsBan
 	}
 	tt.tMap.add(key, newTaskInfo(key, task, spec))
 	tt.reSelectAfterUpdate()
@@ -115,30 +148,43 @@ func (tt *TimedTask) Cancel(key string) {
 	tt.invokeCancelCallback(key, err)
 }
 
-func (tt *TimedTask) ban(key string, error) {
+func (tt *TimedTask) ban(key string) (error) {
 	if tt.isBan(key) {
-	
-	}
-}
-
-func (tt *TimedTask) Ban(key string) {
-	if tt.isBan(key) {
-		return
+		return ErrTaskIsBan
 	} else {
 		tt.l.Lock()
 		defer tt.l.Unlock()
 		tt.cancel(key)
 		tt.bMap.Add(key)
+		return nil
 	}
-	
+}
+
+func (tt *TimedTask) Ban(key string) {
+	err := tt.ban(key)
+	tt.invokeBanCallback(key, err)
+}
+
+func (tt *TimedTask) unBan(key string) error {
+	if !tt.isBan(key) {
+		return ErrTaskIsUnBan
+	} else {
+		tt.bMap.Delete(key)
+	}
+	return nil
 }
 
 func (tt *TimedTask) UnBan(key string) {
-	if
+	err := tt.unBan(key)
+	tt.invokeUnBanCallback(key, err)
 }
 
 func (tt *TimedTask) isBan(key string) (bool) {
 	return tt.bMap.IsExist(key)
+}
+
+func (tt *TimedTask) IsBan(key string) (bool) {
+	return tt.isBan(key)
 }
 
 func (tt *TimedTask) goExecutor() {

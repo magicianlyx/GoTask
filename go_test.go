@@ -147,3 +147,57 @@ func TestReAdd(t *testing.T) {
 	time.Sleep(time.Hour)
 	
 }
+
+func TestBan(t *testing.T) {
+	tt := NewTimedTask(10)
+	
+	tt.AddExecuteCallback(func(args *ExecuteCbArgs) {
+		
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("exec task: %s ,error msg: %s", args.Key, args.Error))
+		} else {
+			fmt.Println(fmt.Sprintf("exec task: %s  ,  %s", args.Key, args.LastTime.Format("2006-01-02 15:04:05")))
+		}
+	})
+	
+	// 添加添加任务回调
+	tt.AddAddCallback(func(args *AddCbArgs) {
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("add task: %s ,error msg: %s", args.Key, args.Error))
+		} else {
+			fmt.Println(fmt.Sprintf("add task: %s", args.Key))
+		}
+	})
+	
+	
+	tt.AddBanCallback(func(args *BanCbArgs) {
+		if args.Error != nil {
+			fmt.Println(fmt.Sprintf("add ban task: %s ,error msg: %s", args.Key, args.Error))
+		} else {
+			fmt.Println(fmt.Sprintf("add ban task: %s", args.Key))
+		}
+	})
+	
+	key := "AAA"
+	tt.Ban(key)
+	
+	tt.Add(key, func() (map[string]interface{}, error) {
+		return nil, nil
+	}, 2)
+	
+	tt.UnBan(key)
+	
+	tt.Add(key, func() (map[string]interface{}, error) {
+		return nil, nil
+	}, 2)
+	
+	tt.tMap.tMap.Range(func(key, value interface{}) bool {
+		fmt.Println(key)
+		return true
+	})
+	
+	time.Sleep(10 * time.Second)
+	tt.Ban(key)
+	
+	time.Sleep(time.Hour)
+}
