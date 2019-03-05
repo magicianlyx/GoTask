@@ -211,6 +211,16 @@ func (tt *TimedTask) banWithCb(key string, cb bool) {
 		tt.invokeBanCallback(key, err)
 	}
 }
+
+// 主动执行一次指定key任务
+func (tt *TimedTask) Execute(key string) {
+	ti := tt.tMap.get(key)
+	if ti != nil {
+		res, err := ti.Task()
+		tt.invokeExecuteCallback(ti, res, err, -1)
+	}
+}
+
 func (tt *TimedTask) Ban(key string) {
 	tt.banWithCb(key, true)
 }
@@ -253,8 +263,10 @@ func (tt *TimedTask) goExecutor() {
 		go func(rid int) {
 			for {
 				ti := <-tt.tasks
-				res, err := ti.Task()
-				tt.invokeExecuteCallback(ti, res, err, rid)
+				if tt.tMap.get(ti.Key) != nil {
+					res, err := ti.Task()
+					tt.invokeExecuteCallback(ti, res, err, rid)
+				}
 			}
 		}(i)
 	}
