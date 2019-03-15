@@ -216,8 +216,7 @@ func (tt *TimedTask) banWithCb(key string, cb bool) {
 func (tt *TimedTask) Execute(key string) {
 	ti := tt.tMap.get(key)
 	if ti != nil {
-		res, err := ti.Task()
-		tt.invokeExecuteCallback(ti, res, err, -1)
+		tt.tasks <- ti
 	}
 }
 
@@ -264,7 +263,8 @@ func (tt *TimedTask) goExecutor() {
 			for {
 				ti := <-tt.tasks
 				if tt.tMap.get(ti.Key) != nil {
-					res, err := ti.Task()
+					res, err := ti.task()
+					ti.LastResult = &TaskResult{res, err}
 					tt.invokeExecuteCallback(ti, res, err, rid)
 				}
 			}
