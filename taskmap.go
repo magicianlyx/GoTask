@@ -8,7 +8,6 @@ import (
 // 任务字典 线程安全
 type taskMap struct {
 	tMap         sync.Map
-	tasks        chan *TaskInfo
 }
 
 func newtaskMap() *taskMap {
