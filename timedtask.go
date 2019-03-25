@@ -321,9 +321,7 @@ func (tt *TimedTask) reSelectAfterUpdate() {
 	}
 	atomic.AddInt64(&tt.singleValue, 1)
 	defer atomic.AddInt64(&tt.singleValue, -1)
-	go func() {
-		tt.refreshSign <- struct{}{}
-	}()
+	tt.refreshSign <- struct{}{}
 }
 
 // 获取定时任务列表信息
