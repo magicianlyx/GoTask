@@ -9,7 +9,8 @@ import (
 type ExecuteRecord struct {
 	StartTime  time.Time
 	EndTime    time.Time
-	ElapseTime int // 单位毫秒
+	ElapseTime int    // 单位毫秒
+	Key        string // 执行的任务键
 }
 
 func (e *ExecuteRecord) Clone() *ExecuteRecord {
@@ -17,6 +18,7 @@ func (e *ExecuteRecord) Clone() *ExecuteRecord {
 		e.StartTime,
 		e.EndTime,
 		e.ElapseTime,
+		e.Key,
 	}
 }
 
@@ -82,17 +84,20 @@ func (q *ExecuteRecordQueue) Clone() *ExecuteRecordQueue {
 }
 
 const (
-	GoroutineStatusSleep  = 0
-	GoroutineStatusActive = 1
+	GoroutineStatusSleep  = "Sleep"
+	GoroutineStatusActive = "Active"
 )
 
 type GoroutineInfo struct {
 	l           sync.RWMutex
 	ID          int                 // 线程ID
-	Status      int                 // 当前状态
+	Status      string              // 当前状态
 	Key         string              // 正在执行的任务key
-	StartTime   time.Time           // 任务开始时间
+	startTime   time.Time           // 任务开始时间
+	StartTime   time.Time           // 线程启动时间
+	BusyTime    int                 // 忙碌时间 单位毫秒
 	LastNRecord *ExecuteRecordQueue // 线程最后n个执行记录
+	TaskCount   int                 // 执行任务数
 }
 
 func (gi *GoroutineInfo) Clone() *GoroutineInfo {
@@ -102,15 +107,17 @@ func (gi *GoroutineInfo) Clone() *GoroutineInfo {
 		Key:         gi.Key,
 		StartTime:   gi.StartTime,
 		LastNRecord: gi.LastNRecord.Clone(),
+		BusyTime:    gi.BusyTime,
+		TaskCount:   gi.TaskCount,
 	}
 }
 
 type Monitor struct {
-	Gis []*GoroutineInfo
+	GoroutineInfoList []*GoroutineInfo
 }
 
-func NewMonitor(count int) *Monitor {
-	gis := make([]*GoroutineInfo, count)
+func NewMonitor(routineCount int) *Monitor {
+	gis := make([]*GoroutineInfo, routineCount)
 	for i, _ := range gis {
 		gis[i] = &GoroutineInfo{
 			sync.RWMutex{},
@@ -118,38 +125,47 @@ func NewMonitor(count int) *Monitor {
 			GoroutineStatusSleep,
 			"",
 			time.Time{},
+			time.Now(),
+			0,
 			NewExecuteRecordQueue(10),
+			0,
 		}
 	}
 	return &Monitor{gis}
 }
 
 func (m *Monitor) SetGoroutineSleep(id int) {
-	gis := m.Gis[id]
-	gis.l.Lock()
-	defer gis.l.Unlock()
-	gis.Status = GoroutineStatusSleep
-	gis.Key = ""
+	gi := m.GoroutineInfoList[id]
+	gi.l.Lock()
+	defer gi.l.Unlock()
 	now := time.Now()
-	gis.LastNRecord.push(&ExecuteRecord{
-		gis.StartTime,
+	elapseTime := int(now.Sub(gi.startTime).Nanoseconds() / 1e6)
+	gi.LastNRecord.push(&ExecuteRecord{
+		gi.startTime,
 		now,
-		int(now.Sub(gis.StartTime).Nanoseconds() / 1e6),
+		elapseTime,
+		gi.Key,
 	})
+	
+	gi.Status = GoroutineStatusSleep
+	gi.Key = ""
+	gi.TaskCount = gi.TaskCount + 1
+	gi.BusyTime = gi.BusyTime + elapseTime
+	gi.startTime = time.Time{}
 }
 
 func (m *Monitor) SetGoroutineRunning(id int, key string) {
-	gis := m.Gis[id]
-	gis.l.Lock()
-	defer gis.l.Unlock()
-	gis.Status = GoroutineStatusActive
-	gis.Key = key
-	gis.StartTime = time.Now()
+	gi := m.GoroutineInfoList[id]
+	gi.l.Lock()
+	defer gi.l.Unlock()
+	gi.Status = GoroutineStatusActive
+	gi.Key = key
+	gi.startTime = time.Now()
 }
 
 func (m *Monitor) Clone() *Monitor {
 	gis := []*GoroutineInfo{}
-	for _, gi := range m.Gis {
+	for _, gi := range m.GoroutineInfoList {
 		gis = append(gis, gi.Clone())
 	}
 	
@@ -159,7 +175,7 @@ func (m *Monitor) Clone() *Monitor {
 }
 
 func (m *Monitor) GetGoroutineStatus(id int) *GoroutineInfo {
-	return m.Gis[id].Clone()
+	return m.GoroutineInfoList[id].Clone()
 }
 
 func (m *Monitor) GetAllGoroutineStatus() *Monitor {

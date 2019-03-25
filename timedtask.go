@@ -34,6 +34,7 @@ type TimedTask struct {
 	banCallback     *funcMap
 	unBanCallback   *funcMap
 	singleValue     int64
+	monitor         *Monitor
 }
 
 func NewTimedTask(routineCount int) (*TimedTask) {
@@ -50,6 +51,7 @@ func NewTimedTask(routineCount int) (*TimedTask) {
 		newFuncMap(),
 		newFuncMap(),
 		0,
+		NewMonitor(routineCount),
 	}
 	tt.goExecutor()
 	tt.goTimedIssue()
@@ -263,9 +265,11 @@ func (tt *TimedTask) goExecutor() {
 			for {
 				ti := <-tt.tasks
 				if tt.tMap.get(ti.Key) != nil {
+					tt.monitor.SetGoroutineRunning(rid, ti.Key)
 					res, err := ti.task()
 					ti.LastResult = &TaskResult{res, err}
 					tt.invokeExecuteCallback(ti, res, err, rid)
+					tt.monitor.SetGoroutineSleep(rid)
 				}
 			}
 		}(i)
@@ -327,4 +331,14 @@ func (tt *TimedTask) reSelectAfterUpdate() {
 // 获取定时任务列表信息
 func (tt *TimedTask) GetTimedTaskInfo() map[string]*TaskInfo {
 	return tt.tMap.getAll()
+}
+
+// 获取指定id的线程信息
+func (tt *TimedTask) GetGoroutineStatus(id int) *GoroutineInfo {
+	return tt.monitor.GetGoroutineStatus(id)
+}
+
+// 获取所有线程信息
+func (tt *TimedTask) GetAllGoroutineStatus() *Monitor {
+	return tt.monitor.GetAllGoroutineStatus()
 }

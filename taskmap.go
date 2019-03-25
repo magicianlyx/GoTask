@@ -86,7 +86,7 @@ func (tm *taskMap) selectNextExec() *TaskInfo {
 	if minv == nil {
 		return nil
 	}
-	return minv.clone()
+	return minv
 }
 
 func (tm *taskMap) getAll() map[string]*TaskInfo {
@@ -100,7 +100,8 @@ func (tm *taskMap) getAll() map[string]*TaskInfo {
 		if !ok {
 			return true
 		}
-		m[k] = v.clone()
+		// m[k] = v.clone()
+		m[k] = v
 		return true
 	})
 	return m

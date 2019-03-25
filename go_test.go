@@ -118,18 +118,21 @@ func TestReAdd(t *testing.T) {
 	// 重复添加任务A
 	tt.Add("A", func() (map[string]interface{}, error) {
 		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `A`")
+		time.Sleep(time.Second)
 		return nil, nil
 	}, 2)
 	
 	// 添加任务B
 	tt.Add("B", func() (map[string]interface{}, error) {
 		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `B`")
+		time.Sleep(time.Second)
 		return nil, nil
 	}, 1)
 	
 	// 添加任务C
 	tt.Add("C", func() (map[string]interface{}, error) {
 		fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "Execute Task `C`")
+		time.Sleep(time.Second)
 		return nil, nil
 	}, 3)
 	
@@ -137,13 +140,14 @@ func TestReAdd(t *testing.T) {
 	fmt.Println(time.Now().Format("2006-01-02 15:04:05"), "[Init]")
 	
 	// 6秒后取消A
-	time.Sleep(time.Second * 6)
+	time.Sleep(time.Second * 4)
 	tt.Cancel("A")
 	
 	// 6秒后取消B
-	time.Sleep(time.Second * 10)
+	time.Sleep(time.Second * 4)
 	tt.Cancel("B")
 	
+	fmt.Printf("%s\r\n", ToJson(tt.GetAllGoroutineStatus()))
 	time.Sleep(time.Hour)
 	
 }
@@ -197,6 +201,7 @@ func TestBan(t *testing.T) {
 	
 	time.Sleep(10 * time.Second)
 	tt.Ban(key)
+	
 	
 	time.Sleep(time.Hour)
 }
