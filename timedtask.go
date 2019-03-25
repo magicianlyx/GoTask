@@ -287,17 +287,15 @@ func (tt *TimedTask) goTimedIssue() {
 			} else {
 				spec = task.LastTime.Add(time.Duration(task.Spec) * time.Second).Sub(time.Now())
 			}
-			if spec.Nanoseconds() < 0 {
+			if spec.Nanoseconds() <= 0 {
 				spec = time.Nanosecond
 			}
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
-				if task != nil {
-					// 先更新任务信息再执行任务 减少时间误差
-					tt.updateMapAfterExec(task)
-					tt.tasks <- task
-				}
+				// 先更新任务信息再执行任务 减少时间误差
+				tt.updateMapAfterExec(task)
+				tt.tasks <- task
 				break
 			case <-tt.refreshSign:
 				break
