@@ -168,7 +168,6 @@ func (m *Monitor) Clone() *Monitor {
 	for _, gi := range m.GoroutineInfoList {
 		gis = append(gis, gi.Clone())
 	}
-	
 	return &Monitor{
 		gis,
 	}
