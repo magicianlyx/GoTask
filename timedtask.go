@@ -302,6 +302,8 @@ func (tt *TimedTask) goTimedIssue() {
 				tt.tasks <- task
 				break
 			case <-tt.refreshSign:
+				// 下次循环前先取消当前计时器 否则会一直即使 大量占用cpu资源
+				ticker.Stop()
 				break
 			}
 		}
