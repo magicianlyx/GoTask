@@ -297,6 +297,8 @@ func (tt *TimedTask) goTimedIssue() {
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
+				// 下次循环前先取消当前计时器 否则会一直即使 大量占用cpu资源
+				ticker.Stop()
 				// 先更新任务信息再执行任务 减少时间误差
 				tt.updateMapAfterExec(task)
 				tt.tasks <- task
