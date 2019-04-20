@@ -76,7 +76,7 @@ func (q *ExecuteRecordQueue) peek() *ExecuteRecord {
 func (q *ExecuteRecordQueue) Clone() *ExecuteRecordQueue {
 	q.l.RLock()
 	defer q.l.RUnlock()
-	list := []*ExecuteRecord{}
+	list := make([]*ExecuteRecord,0)
 	for _, er := range q.List {
 		list = append(list, er.Clone())
 	}
@@ -118,7 +118,7 @@ type Monitor struct {
 
 func NewMonitor(routineCount int) *Monitor {
 	gis := make([]*GoroutineInfo, routineCount)
-	for i, _ := range gis {
+	for i := range gis {
 		gis[i] = &GoroutineInfo{
 			sync.RWMutex{},
 			i,
@@ -164,7 +164,7 @@ func (m *Monitor) SetGoroutineRunning(id int, key string) {
 }
 
 func (m *Monitor) Clone() *Monitor {
-	gis := []*GoroutineInfo{}
+	gis := make([]*GoroutineInfo,0)
 	for _, gi := range m.GoroutineInfoList {
 		gis = append(gis, gi.Clone())
 	}

@@ -10,7 +10,7 @@ type taskMap struct {
 	tMap         sync.Map
 }
 
-func newtaskMap() *taskMap {
+func newTaskMap() *taskMap {
 	return &taskMap{
 		tMap: sync.Map{},
 	}

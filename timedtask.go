@@ -40,7 +40,7 @@ type TimedTask struct {
 func NewTimedTask(routineCount int) (*TimedTask) {
 	tt := &TimedTask{
 		sync.RWMutex{},
-		newtaskMap(),
+		newTaskMap(),
 		NewSet(),
 		make(chan *TaskInfo),
 		make(chan struct{}),
@@ -96,7 +96,7 @@ func (tt *TimedTask) DelUnBanCallback(cb func(*UnBanCbArgs)) {
 
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
-		addCallbacks := []addCallback{}
+		addCallbacks := make([]addCallback,0)
 		tt.addCallback.getAll(&addCallbacks)
 		for _, cb := range addCallbacks {
 			cb(&AddCbArgs{info, err})
@@ -106,7 +106,7 @@ func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 
 func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	go func() {
-		cancelCallbacks := []cancelCallback{}
+		cancelCallbacks := make([]cancelCallback,0)
 		tt.cancelCallback.getAll(&cancelCallbacks)
 		for _, cb := range cancelCallbacks {
 			cb(&CancelCbArgs{key, err})
@@ -116,7 +116,7 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 
 func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error, rid int) {
 	go func() {
-		executeCallbacks := []executeCallback{}
+		executeCallbacks := make([]executeCallback,0)
 		tt.executeCallback.getAll(&executeCallbacks)
 		for _, cb := range executeCallbacks {
 			cb(&ExecuteCbArgs{info, res, err, rid})
@@ -126,7 +126,7 @@ func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interf
 
 func (tt *TimedTask) invokeBanCallback(key string, err error) {
 	go func() {
-		banCallbacks := []banCallback{}
+		banCallbacks := make([]banCallback,0)
 		tt.banCallback.getAll(&banCallbacks)
 		for _, cb := range banCallbacks {
 			cb(&BanCbArgs{key, err})
@@ -136,7 +136,7 @@ func (tt *TimedTask) invokeBanCallback(key string, err error) {
 
 func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
 	go func() {
-		unBanCallbacks := []unBanCallback{}
+		unBanCallbacks := make([]unBanCallback,0)
 		tt.unBanCallback.getAll(&unBanCallbacks)
 		for _, cb := range unBanCallbacks {
 			cb(&UnBanCbArgs{key, err})

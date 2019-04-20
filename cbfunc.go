@@ -6,7 +6,7 @@ import (
 )
 
 type funcMap struct {
-	fmap    sync.Map
+	fMap    sync.Map
 }
 
 func newFuncMap() *funcMap {
@@ -15,12 +15,12 @@ func newFuncMap() *funcMap {
 
 func (fm *funcMap) add(i interface{}) {
 	p := reflect.ValueOf(i).Pointer()
-	fm.fmap.Store(p, i)
+	fm.fMap.Store(p, i)
 }
 
 func (fm *funcMap) del(i interface{}) {
 	p := reflect.ValueOf(i).Pointer()
-	fm.fmap.Delete(p)
+	fm.fMap.Delete(p)
 }
 
 func (fm *funcMap) getAll(out interface{}) int {
@@ -29,7 +29,7 @@ func (fm *funcMap) getAll(out interface{}) int {
 	
 	n := 0
 	
-	fm.fmap.Range(func(key, value interface{}) bool {
+	fm.fMap.Range(func(key, value interface{}) bool {
 		n += 1
 		eo = append(eo, reflect.ValueOf(value))
 		return true
