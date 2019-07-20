@@ -35,6 +35,9 @@ type TimedTask struct {
 	unBanCallback   *funcMap
 	singleValue     int64
 	monitor         *Monitor
+	shutdownExecutorSign    chan struct{}
+	shutdownIssueSign    chan struct{}
+	wg              *sync.WaitGroup
 }
 
 func NewTimedTask(routineCount int) (*TimedTask) {
@@ -52,10 +55,24 @@ func NewTimedTask(routineCount int) (*TimedTask) {
 		newFuncMap(),
 		0,
 		NewMonitor(routineCount),
+		make(chan struct{}),
+		make(chan struct{}),
+		&sync.WaitGroup{},
 	}
 	tt.goExecutor()
 	tt.goTimedIssue()
 	return tt
+}
+
+func (tt *TimedTask) Stop() {
+	tt.shutdownIssueSign <- struct{}{}
+	for i := 0; i < tt.routineCount; i++ {
+		tt.shutdownExecutorSign <- struct{}{}
+	}
+	tt.wg.Wait()
+	close(tt.tasks)
+	close(tt.refreshSign)
+	return
 }
 
 func (tt *TimedTask) AddAddCallback(cb func(*AddCbArgs)) {
@@ -96,7 +113,7 @@ func (tt *TimedTask) DelUnBanCallback(cb func(*UnBanCbArgs)) {
 
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
-		addCallbacks := make([]addCallback,0)
+		addCallbacks := make([]addCallback, 0)
 		tt.addCallback.getAll(&addCallbacks)
 		for _, cb := range addCallbacks {
 			cb(&AddCbArgs{info, err})
@@ -106,7 +123,7 @@ func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 
 func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	go func() {
-		cancelCallbacks := make([]cancelCallback,0)
+		cancelCallbacks := make([]cancelCallback, 0)
 		tt.cancelCallback.getAll(&cancelCallbacks)
 		for _, cb := range cancelCallbacks {
 			cb(&CancelCbArgs{key, err})
@@ -116,7 +133,7 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 
 func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error, rid int) {
 	go func() {
-		executeCallbacks := make([]executeCallback,0)
+		executeCallbacks := make([]executeCallback, 0)
 		tt.executeCallback.getAll(&executeCallbacks)
 		for _, cb := range executeCallbacks {
 			cb(&ExecuteCbArgs{info, res, err, rid})
@@ -126,7 +143,7 @@ func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interf
 
 func (tt *TimedTask) invokeBanCallback(key string, err error) {
 	go func() {
-		banCallbacks := make([]banCallback,0)
+		banCallbacks := make([]banCallback, 0)
 		tt.banCallback.getAll(&banCallbacks)
 		for _, cb := range banCallbacks {
 			cb(&BanCbArgs{key, err})
@@ -136,7 +153,7 @@ func (tt *TimedTask) invokeBanCallback(key string, err error) {
 
 func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
 	go func() {
-		unBanCallbacks := make([]unBanCallback,0)
+		unBanCallbacks := make([]unBanCallback, 0)
 		tt.unBanCallback.getAll(&unBanCallbacks)
 		for _, cb := range unBanCallbacks {
 			cb(&UnBanCbArgs{key, err})
@@ -262,8 +279,16 @@ func (tt *TimedTask) IsBan(key string) (bool) {
 func (tt *TimedTask) goExecutor() {
 	for i := 0; i < tt.routineCount; i++ {
 		go func(rid int) {
+			tt.wg.Add(1)
+			defer tt.wg.Done()
 			for {
-				ti := <-tt.tasks
+				var ti *TaskInfo
+				select {
+				case ti = <-tt.tasks:
+					break
+				case <-tt.shutdownExecutorSign:
+					return
+				}
 				if tt.tMap.get(ti.Key) != nil {
 					tt.monitor.SetGoroutineRunning(rid, ti.Key)
 					res, err := ti.task()
@@ -278,12 +303,19 @@ func (tt *TimedTask) goExecutor() {
 
 func (tt *TimedTask) goTimedIssue() {
 	go func() {
+		tt.wg.Add(1)
+		defer tt.wg.Done()
 		for {
 			task := tt.tMap.selectNextExec()
 			if task == nil {
 				// 任务列表中没有任务 等待刷新信号来到后 重新选择任务
-				<-tt.refreshSign
-				continue
+				select {
+				case <-tt.refreshSign:
+					continue
+				
+				case <-tt.shutdownIssueSign:
+					return
+				}
 			}
 			var spec time.Duration
 			if task.LastTime.IsZero() {
@@ -297,16 +329,18 @@ func (tt *TimedTask) goTimedIssue() {
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
-				// 下次循环前先取消当前计时器 否则会一直即使 大量占用cpu资源
+				// 下次循环前先取消当前计时器 否则会一直计时 大量占用cpu资源
 				ticker.Stop()
 				// 先更新任务信息再执行任务 减少时间误差
 				tt.updateMapAfterExec(task)
 				tt.tasks <- task
 				break
 			case <-tt.refreshSign:
-				// 下次循环前先取消当前计时器 否则会一直即使 大量占用cpu资源
+				// 下次循环前先取消当前计时器 否则会一直计时 大量占用cpu资源
 				ticker.Stop()
 				break
+			case <-tt.shutdownIssueSign:
+				return
 			}
 		}
 	}()

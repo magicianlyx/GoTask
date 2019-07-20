@@ -33,3 +33,20 @@ func TestSingleTask(t *testing.T) {
 	}, 2)
 	time.Sleep(time.Hour)
 }
+
+func TestNewTimedTask(t *testing.T) {
+	for i := 0; i < 100000; i++ {
+		go func() {
+			a := NewTimedTask(3)
+			a.Add("A", func() (map[string]interface{}, error) {
+				fmt.Println("执行任务A")
+				return nil, nil
+			}, 1)
+			time.Sleep(3 * time.Second)
+			a.Stop()
+			fmt.Println("成功停止")
+		}()
+	}
+	
+	time.Sleep(time.Hour)
+}
