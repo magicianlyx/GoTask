@@ -2,9 +2,9 @@ package GoTaskv1
 
 import (
 	"errors"
-	"time"
-	"sync/atomic"
 	"sync"
+	"sync/atomic"
+	"time"
 )
 
 var (
@@ -22,22 +22,22 @@ type banCallback func(*BanCbArgs)
 type unBanCallback func(*UnBanCbArgs)
 
 type TimedTask struct {
-	l               sync.RWMutex
-	tMap            *taskMap       // 定时任务字典
-	bMap            *Set           // 被禁止添加执行的key
-	tasks           chan *TaskInfo // 即将被执行的任务通道
-	refreshSign     chan struct{}
-	routineCount    int
-	addCallback     *funcMap
-	cancelCallback  *funcMap
-	executeCallback *funcMap
-	banCallback     *funcMap
-	unBanCallback   *funcMap
-	singleValue     int64
-	monitor         *Monitor
-	shutdownExecutorSign    chan struct{}
+	l                    sync.RWMutex
+	tMap                 *taskMap       // 定时任务字典
+	bMap                 *Set           // 被禁止添加执行的key
+	tasks                chan *TaskInfo // 即将被执行的任务通道
+	refreshSign          chan struct{}
+	routineCount         int
+	addCallback          *funcMap
+	cancelCallback       *funcMap
+	executeCallback      *funcMap
+	banCallback          *funcMap
+	unBanCallback        *funcMap
+	singleValue          int64
+	monitor              *Monitor
+	shutdownExecutorSign chan struct{}
 	shutdownIssueSign    chan struct{}
-	wg              *sync.WaitGroup
+	wg                   *sync.WaitGroup
 }
 
 func NewTimedTask(routineCount int) (*TimedTask) {
@@ -172,7 +172,7 @@ func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
 	if tt.isBan(key) {
 		return ErrTaskIsBan
 	}
-	tt.tMap.add(key, newTaskInfo(key, task, spec))
+	tt.tMap.add(key, NewTaskInfo(key, task, spec))
 	tt.reSelectAfterUpdate()
 	return nil
 }
@@ -182,7 +182,7 @@ func (tt *TimedTask) addWithCb(key string, task TaskObj, spec int, cb bool) {
 	err := tt.add(key, task, spec)
 	tt.l.Unlock()
 	if cb {
-		tt.invokeAddCallback(newTaskInfo(key, task, spec), err)
+		tt.invokeAddCallback(NewTaskInfo(key, task, spec), err)
 	}
 }
 
@@ -306,26 +306,18 @@ func (tt *TimedTask) goTimedIssue() {
 		tt.wg.Add(1)
 		defer tt.wg.Done()
 		for {
-			task := tt.tMap.selectNextExec()
-			if task == nil {
+			task, spec, ok := tt.tMap.selectNextExec()
+			if !ok {
 				// 任务列表中没有任务 等待刷新信号来到后 重新选择任务
 				select {
 				case <-tt.refreshSign:
 					continue
-				
+
 				case <-tt.shutdownIssueSign:
 					return
 				}
 			}
-			var spec time.Duration
-			if task.LastTime.IsZero() {
-				spec = task.AddTime.Add(time.Duration(task.Spec) * time.Second).Sub(time.Now())
-			} else {
-				spec = task.LastTime.Add(time.Duration(task.Spec) * time.Second).Sub(time.Now())
-			}
-			if spec.Nanoseconds() <= 0 {
-				spec = time.Nanosecond
-			}
+
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
@@ -347,12 +339,9 @@ func (tt *TimedTask) goTimedIssue() {
 }
 
 func (tt *TimedTask) updateMapAfterExec(task *TaskInfo) {
-	task.Count += 1
-	if task.LastTime.IsZero() {
-		task.LastTime = task.AddTime.Add(time.Duration(task.Spec) * time.Second)
-	} else {
-		task.LastTime = task.LastTime.Add(time.Duration(task.Spec) * time.Second)
-	}
+	// 更新任务信息
+	task.UpdateAfterExecute()
+	// 写回到字典
 	tt.tMap.set(task.Key, task)
 }
 

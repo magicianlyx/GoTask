@@ -7,7 +7,7 @@ import (
 
 // 任务字典 线程安全
 type taskMap struct {
-	tMap         sync.Map
+	tMap sync.Map
 }
 
 func newTaskMap() *taskMap {
@@ -52,7 +52,7 @@ func (tm *taskMap) isExist(key string) bool {
 }
 
 // 选择下一个最早执行的任务
-func (tm *taskMap) selectNextExec() *TaskInfo {
+func (tm *taskMap) selectNextExec() (*TaskInfo, time.Duration, bool) {
 	var minv *TaskInfo
 	tm.tMap.Range(func(key, value interface{}) bool {
 		v, ok := value.(*TaskInfo)
@@ -63,30 +63,22 @@ func (tm *taskMap) selectNextExec() *TaskInfo {
 			minv = v
 			return true
 		}
-		
-		var vlt time.Time
-		if v.LastTime.IsZero() {
-			vlt = v.AddTime
-		} else {
-			vlt = v.LastTime
-		}
-		
-		var mlt time.Time
-		if minv.LastTime.IsZero() {
-			mlt = minv.AddTime
-		} else {
-			mlt = minv.LastTime
-		}
-		
-		if mlt.Add(time.Duration(minv.Spec) * time.Second).UnixNano() > vlt.Add(time.Duration(v.Spec) * time.Second).UnixNano() {
+		mnt := minv.NextScheduleTime()
+		vnt := v.NextScheduleTime()
+
+		if mnt.UnixNano() > vnt.UnixNano() {
 			minv = v
 		}
 		return true
 	})
 	if minv == nil {
-		return nil
+		return nil, 0, false
 	}
-	return minv
+	spec := minv.NextScheduleTime().Sub(time.Now())
+	if spec <= 0 {
+		spec = time.Nanosecond
+	}
+	return minv, spec, true
 }
 
 func (tm *taskMap) getAll() map[string]*TaskInfo {
