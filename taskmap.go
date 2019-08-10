@@ -64,12 +64,15 @@ func (tm *TaskMap) SelectNextExec() (*TaskInfo, time.Duration, bool) {
 		if !ok {
 			return true
 		}
+		if !v.HasNext {
+			return true
+		}
 		if minv == nil {
 			minv = v
 			return true
 		}
-		mnt, _ := minv.NextScheduleTime()
-		vnt, _ := v.NextScheduleTime()
+		mnt := minv.NextScheduleTime()
+		vnt := v.NextScheduleTime()
 
 		if mnt.UnixNano() > vnt.UnixNano() {
 			minv = v
@@ -79,7 +82,7 @@ func (tm *TaskMap) SelectNextExec() (*TaskInfo, time.Duration, bool) {
 	if minv == nil {
 		return nil, 0, false
 	}
-	ns, _ := minv.NextScheduleTime()
+	ns := minv.NextScheduleTime()
 	spec := ns.Sub(time.Now())
 	if spec <= 0 {
 		spec = time.Nanosecond

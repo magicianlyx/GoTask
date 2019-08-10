@@ -16,8 +16,10 @@ type TaskInfo struct {
 	Task       TaskObj     // 任务方法
 	LastTime   time.Time   // 最后一次执行任务的时间（未执行过时为time.Time{}）
 	AddTime    time.Time   // 任务添加的时间
+	NextTime   time.Time   // 下次执行时间
 	Count      int         // 任务执行次数
-	Spec       int         // 任务执行时间间隔
+	Sche       ISchedule   // 任务计划
+	HasNext    bool        // 是否还有下一次执行
 	LastResult *TaskResult // 任务最后一次执行的结果
 }
 
@@ -28,23 +30,16 @@ func (t *TaskInfo) clone() *TaskInfo {
 	rt.Task = t.Task
 	rt.LastTime = t.LastTime
 	rt.AddTime = t.AddTime
+	rt.NextTime = t.NextTime
 	rt.Count = t.Count
-	rt.Spec = t.Spec
+	rt.Sche = t.Sche
+	rt.HasNext = t.HasNext
 	return rt
 }
 
 // 任务添加时间
 func (t *TaskInfo) GetAddTaskTime() time.Time {
 	return t.AddTime
-}
-
-// 第一次执行执行时间
-func (t *TaskInfo) GetFirstExecuteTime() (time.Time, bool) {
-	if t.LastTime.IsZero() {
-		return time.Time{}, false
-	} else {
-		return t.AddTime.Add(time.Duration(t.Spec) * time.Second), true
-	}
 }
 
 // 最后一次执行时间
@@ -57,35 +52,37 @@ func (t *TaskInfo) GetLastExecuteTime() (time.Time, bool) {
 }
 
 // 下次执行时间
-func (t *TaskInfo) NextScheduleTime() (time.Time, bool) {
-	lastTime := t.LastTime
-	if lastTime.IsZero() {
-		lastTime = t.AddTime
-	}
-	return lastTime.Add(time.Duration(t.Spec) * time.Second), true
+func (t *TaskInfo) NextScheduleTime() time.Time {
+	return t.NextTime
 }
 
-// 执行或调用 调整任务信息
+// 执行后调用 调整任务信息
+// 返回是否还有下一次执行
 func (t *TaskInfo) UpdateAfterExecute() {
 	t.Count += 1
-	if t.LastTime.IsZero() {
-		t.LastTime = t.AddTime.Add(time.Duration(t.Spec) * time.Second)
-	} else {
-		t.LastTime = t.LastTime.Add(time.Duration(t.Spec) * time.Second)
-	}
+	t.LastTime = time.Now()
+	t.NextTime, t.HasNext = t.Sche.expression(t)
+}
+
+// 是否还有下一次执行
+func (t *TaskInfo) HasNextExecute() bool {
+	return t.HasNext
 }
 
 // 创建一个任务信息对象
-func NewTaskInfo(key string, task TaskObj, spec int) *TaskInfo {
+func NewTaskInfo(key string, task TaskObj, sche ISchedule) *TaskInfo {
 	now := time.Now()
-	return &TaskInfo{
+	ti := &TaskInfo{
 		Key:      key,
 		Task:     task,
 		LastTime: time.Time{},
 		AddTime:  now,
 		Count:    0,
-		Spec:     spec,
+		Sche:     sche,
+		HasNext:  true,
 	}
+	ti.NextTime, _ = sche.expression(ti)
+	return ti
 }
 
 type ExecuteCbArgs struct {
@@ -109,4 +106,5 @@ type BanCbArgs struct {
 	Key   string
 	Error error
 }
+
 type UnBanCbArgs BanCbArgs

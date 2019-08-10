@@ -2,8 +2,7 @@ package GoTaskv1
 
 import (
 	"fmt"
-	"github.com/json-iterator/go"
-	"testing"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // 测试使用
@@ -13,7 +12,4 @@ func ToJson(v interface{}) string {
 		return fmt.Sprintf("%v", v)
 	}
 	return string(bs)
-}
-
-func TestA(t *testing.T) {
 }

@@ -160,29 +160,29 @@ func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
 	}()
 }
 
-func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
+func (tt *TimedTask) add(key string, task TaskObj, sche ISchedule) error {
 	if tt.tMap.IsExist(key) {
 		return ErrTaskIsExist
 	}
 	if tt.isBan(key) {
 		return ErrTaskIsBan
 	}
-	tt.tMap.Add(key, NewTaskInfo(key, task, spec))
+	tt.tMap.Add(key, NewTaskInfo(key, task, sche))
 	tt.reSelectAfterUpdate()
 	return nil
 }
 
-func (tt *TimedTask) addWithCb(key string, task TaskObj, spec int, cb bool) {
+func (tt *TimedTask) addWithCb(key string, task TaskObj, sche ISchedule, cb bool) {
 	tt.l.Lock()
-	err := tt.add(key, task, spec)
+	err := tt.add(key, task, sche)
 	tt.l.Unlock()
 	if cb {
-		tt.invokeAddCallback(NewTaskInfo(key, task, spec), err)
+		tt.invokeAddCallback(NewTaskInfo(key, task, sche), err)
 	}
 }
 
-func (tt *TimedTask) Add(key string, task TaskObj, spec int) {
-	tt.addWithCb(key, task, spec, true)
+func (tt *TimedTask) Add(key string, task TaskObj, sche ISchedule) {
+	tt.addWithCb(key, task, sche, true)
 }
 
 func (tt *TimedTask) cancel(key string) error {
@@ -285,11 +285,20 @@ func (tt *TimedTask) goExecutor() {
 					return
 				}
 				if tt.tMap.Get(ti.Key) != nil {
+					// 执行任务
 					tt.monitor.SetGoroutineRunning(rid, ti.Key)
 					res, err := ti.Task()
 					ti.LastResult = &TaskResult{res, err}
-					tt.invokeExecuteCallback(ti, res, err, rid)
 					tt.monitor.SetGoroutineSleep(rid)
+
+					// 如果没有下一次的执行计划 那么将会清楚任务
+					if !ti.HasNextExecute() {
+						tt.tMap.Delete(ti.Key)
+					}
+
+					// 执行回调
+					tt.invokeExecuteCallback(ti, res, err, rid)
+
 				}
 			}
 		}(i)
@@ -336,13 +345,8 @@ func (tt *TimedTask) goTimedIssue() {
 func (tt *TimedTask) updateMapAfterExec(task *TaskInfo) {
 	// 更新任务信息
 	task.UpdateAfterExecute()
-	if _, ok := task.NextScheduleTime(); !ok {
-		// 没有下一次执行，那么就删除任务
-		tt.tMap.Delete(task.Key)
-	} else {
-		// 写回到字典
-		tt.tMap.Set(task.Key, task)
-	}
+	// 写回到字典 更新
+	tt.tMap.Set(task.Key, task)
 }
 
 // 触发更新定时最早一个被执行的定时任务
