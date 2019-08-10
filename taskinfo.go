@@ -57,12 +57,12 @@ func (t *TaskInfo) GetLastExecuteTime() (time.Time, bool) {
 }
 
 // 下次执行时间
-func (t *TaskInfo) NextScheduleTime() time.Time {
+func (t *TaskInfo) NextScheduleTime() (time.Time, bool) {
 	lastTime := t.LastTime
 	if lastTime.IsZero() {
 		lastTime = t.AddTime
 	}
-	return lastTime.Add(time.Duration(t.Spec) * time.Second)
+	return lastTime.Add(time.Duration(t.Spec) * time.Second), true
 }
 
 // 执行或调用 调整任务信息
@@ -87,7 +87,6 @@ func NewTaskInfo(key string, task TaskObj, spec int) *TaskInfo {
 		Spec:     spec,
 	}
 }
-
 
 type ExecuteCbArgs struct {
 	*TaskInfo

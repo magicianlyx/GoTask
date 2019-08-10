@@ -160,8 +160,6 @@ func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
 	}()
 }
 
-
-
 func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
 	if tt.tMap.IsExist(key) {
 		return ErrTaskIsExist
@@ -228,7 +226,7 @@ func (tt *TimedTask) banWithCb(key string, cb bool) {
 	}
 }
 
-// 主动执行一次指定key任务
+// 主动执行一次指定key任务 不影响既有定时任务 执行的记录将会添加到任务总结信息中
 func (tt *TimedTask) Execute(key string) {
 	ti := tt.tMap.Get(key)
 	if ti != nil {
@@ -286,10 +284,10 @@ func (tt *TimedTask) goExecutor() {
 				case <-tt.shutdownExecutorSign:
 					return
 				}
-				if tt.tMap.Get(ti.key) != nil {
-					tt.monitor.SetGoroutineRunning(rid, ti.key)
-					res, err := ti.task()
-					ti.lastResult = &TaskResult{res, err}
+				if tt.tMap.Get(ti.Key) != nil {
+					tt.monitor.SetGoroutineRunning(rid, ti.Key)
+					res, err := ti.Task()
+					ti.LastResult = &TaskResult{res, err}
 					tt.invokeExecuteCallback(ti, res, err, rid)
 					tt.monitor.SetGoroutineSleep(rid)
 				}
@@ -338,8 +336,13 @@ func (tt *TimedTask) goTimedIssue() {
 func (tt *TimedTask) updateMapAfterExec(task *TaskInfo) {
 	// 更新任务信息
 	task.UpdateAfterExecute()
-	// 写回到字典
-	tt.tMap.Set(task.key, task)
+	if _, ok := task.NextScheduleTime(); !ok {
+		// 没有下一次执行，那么就删除任务
+		tt.tMap.Delete(task.Key)
+	} else {
+		// 写回到字典
+		tt.tMap.Set(task.Key, task)
+	}
 }
 
 // 触发更新定时最早一个被执行的定时任务
