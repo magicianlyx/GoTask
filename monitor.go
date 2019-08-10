@@ -7,10 +7,10 @@ import (
 
 // 执行记录
 type ExecuteRecord struct {
-	StartTime  time.Time
-	EndTime    time.Time
-	ElapseTime int    // 单位毫秒
-	Key        string // 执行的任务键
+	StartTime  time.Time // 任务执行开始时间
+	EndTime    time.Time // 任务执行完毕时间
+	ElapseTime int       // 执行消耗时间 单位毫秒
+	Key        string    // 执行的任务键
 }
 
 func (e *ExecuteRecord) Clone() *ExecuteRecord {
@@ -93,7 +93,7 @@ type GoroutineInfo struct {
 	ID          int                 // 线程ID
 	Status      string              // 当前状态
 	Key         string              // 正在执行的任务key
-	startTime   time.Time           // 任务开始时间
+	startTime   time.Time           // 任务开始时间 用来统计任务占用线程时间
 	StartTime   time.Time           // 线程启动时间
 	BusyTime    int                 // 忙碌时间 单位毫秒
 	LastNRecord *ExecuteRecordQueue // 线程最后n个执行记录
