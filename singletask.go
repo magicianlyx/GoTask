@@ -12,13 +12,13 @@ func NewMultiTask(routineCount int) *MultiTask {
 func (mt *MultiTask) Add(key string, task TaskObj, spec int, count int) {
 	var f executeCallback
 	f = func(args *ExecuteCbArgs) {
-		if args.Key == key && args.Count >= count {
+		if args.key == key && args.count >= count {
 			mt.cancelWithCb(key, false)
 			// delete this callback function after cancel
 			mt.DelExecuteCallback(f)
 		}
 	}
-	
+
 	mt.AddExecuteCallback(f)
 	mt.TimedTask.Add(key, task, spec)
 }

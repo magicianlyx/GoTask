@@ -6,37 +6,42 @@ import (
 )
 
 // 任务字典 线程安全
-type taskMap struct {
+type TaskMap struct {
 	tMap sync.Map
 }
 
-func newTaskMap() *taskMap {
-	return &taskMap{
+func NewTaskMap() *TaskMap {
+	return &TaskMap{
 		tMap: sync.Map{},
 	}
 }
 
-func (tm *taskMap) add(key string, task *TaskInfo) {
-	if !tm.isExist(key) {
+// 添加
+func (tm *TaskMap) Add(key string, task *TaskInfo) {
+	if !tm.IsExist(key) {
 		tm.tMap.Store(key, task)
 	}
 }
 
-func (tm *taskMap) set(key string, task *TaskInfo) {
-	if tm.isExist(key) {
+// 存在时才修改
+func (tm *TaskMap) Set(key string, task *TaskInfo) {
+	if tm.IsExist(key) {
 		tm.tMap.Store(key, task)
 	}
 }
 
-func (tm *taskMap) addOrSet(key string, task *TaskInfo) {
+// 添加或修改
+func (tm *TaskMap) AddOrSet(key string, task *TaskInfo) {
 	tm.tMap.Store(key, task)
 }
 
-func (tm *taskMap) delete(key string) {
+// 删除
+func (tm *TaskMap) Delete(key string) {
 	tm.tMap.Delete(key)
 }
 
-func (tm *taskMap) get(key string) *TaskInfo {
+// 获取 返回副本
+func (tm *TaskMap) Get(key string) *TaskInfo {
 	if v, ok := tm.tMap.Load(key); ok {
 		if v1, ok1 := v.(*TaskInfo); ok1 {
 			return v1.clone()
@@ -46,13 +51,13 @@ func (tm *taskMap) get(key string) *TaskInfo {
 }
 
 // 键是否存在
-func (tm *taskMap) isExist(key string) bool {
+func (tm *TaskMap) IsExist(key string) bool {
 	_, ok := tm.tMap.Load(key)
 	return ok
 }
 
 // 选择下一个最早执行的任务
-func (tm *taskMap) selectNextExec() (*TaskInfo, time.Duration, bool) {
+func (tm *TaskMap) SelectNextExec() (*TaskInfo, time.Duration, bool) {
 	var minv *TaskInfo
 	tm.tMap.Range(func(key, value interface{}) bool {
 		v, ok := value.(*TaskInfo)
@@ -81,7 +86,8 @@ func (tm *taskMap) selectNextExec() (*TaskInfo, time.Duration, bool) {
 	return minv, spec, true
 }
 
-func (tm *taskMap) getAll() map[string]*TaskInfo {
+// 获取所有返回副本
+func (tm *TaskMap) GetAll() map[string]*TaskInfo {
 	m := map[string]*TaskInfo{}
 	tm.tMap.Range(func(key, value interface{}) bool {
 		k, ok := key.(string)

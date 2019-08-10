@@ -17,46 +17,45 @@ var (
 type addCallback func(*AddCbArgs)
 type cancelCallback func(*CancelCbArgs)
 type executeCallback func(*ExecuteCbArgs)
-
 type banCallback func(*BanCbArgs)
 type unBanCallback func(*UnBanCbArgs)
 
 type TimedTask struct {
 	l                    sync.RWMutex
-	tMap                 *taskMap       // 定时任务字典
+	tMap                 *TaskMap       // 定时任务字典
 	bMap                 *Set           // 被禁止添加执行的key
 	tasks                chan *TaskInfo // 即将被执行的任务通道
-	refreshSign          chan struct{}
+	refreshSign          chan struct{}  // 刷新信号通知通道
+	singleValue          int64          // 保证同一时刻单刷新信号
+	shutdownExecutorSign chan struct{}  // 任务执行线程 停止信号通知通道
+	shutdownIssueSign    chan struct{}  // 任务发射线程 停止信号通知通道
 	routineCount         int
-	addCallback          *funcMap
-	cancelCallback       *funcMap
-	executeCallback      *funcMap
-	banCallback          *funcMap
-	unBanCallback        *funcMap
-	singleValue          int64
+	addCallback          *CbFuncMap
+	cancelCallback       *CbFuncMap
+	executeCallback      *CbFuncMap
+	banCallback          *CbFuncMap
+	unBanCallback        *CbFuncMap
 	monitor              *Monitor
-	shutdownExecutorSign chan struct{}
-	shutdownIssueSign    chan struct{}
 	wg                   *sync.WaitGroup
 }
 
-func NewTimedTask(routineCount int) (*TimedTask) {
+func NewTimedTask(routineCount int) *TimedTask {
 	tt := &TimedTask{
 		sync.RWMutex{},
-		newTaskMap(),
+		NewTaskMap(),
 		NewSet(),
 		make(chan *TaskInfo),
 		make(chan struct{}),
-		routineCount,
-		newFuncMap(),
-		newFuncMap(),
-		newFuncMap(),
-		newFuncMap(),
-		newFuncMap(),
 		0,
+		make(chan struct{}),
+		make(chan struct{}),
+		routineCount,
+		NewCbFuncMap(),
+		NewCbFuncMap(),
+		NewCbFuncMap(),
+		NewCbFuncMap(),
+		NewCbFuncMap(),
 		NewMonitor(routineCount),
-		make(chan struct{}),
-		make(chan struct{}),
 		&sync.WaitGroup{},
 	}
 	tt.goExecutor()
@@ -76,45 +75,45 @@ func (tt *TimedTask) Stop() {
 }
 
 func (tt *TimedTask) AddAddCallback(cb func(*AddCbArgs)) {
-	tt.addCallback.add(cb)
+	tt.addCallback.Add(cb)
 }
 
 func (tt *TimedTask) DelAddCallback(cb func(*AddCbArgs)) {
-	tt.addCallback.del(cb)
+	tt.addCallback.Del(cb)
 }
 
 func (tt *TimedTask) AddCancelCallback(cb func(*CancelCbArgs)) {
-	tt.cancelCallback.add(cb)
+	tt.cancelCallback.Add(cb)
 }
 
 func (tt *TimedTask) DelCancelCallback(cb func(*CancelCbArgs)) {
-	tt.cancelCallback.del(cb)
+	tt.cancelCallback.Del(cb)
 }
 
 func (tt *TimedTask) AddExecuteCallback(cb func(*ExecuteCbArgs)) {
-	tt.executeCallback.add(cb)
+	tt.executeCallback.Add(cb)
 }
 func (tt *TimedTask) DelExecuteCallback(cb func(*ExecuteCbArgs)) {
-	tt.executeCallback.del(cb)
+	tt.executeCallback.Del(cb)
 }
 func (tt *TimedTask) AddBanCallback(cb func(*BanCbArgs)) {
-	tt.banCallback.add(cb)
+	tt.banCallback.Add(cb)
 }
 func (tt *TimedTask) DelBanCallback(cb func(*BanCbArgs)) {
-	tt.banCallback.del(cb)
+	tt.banCallback.Del(cb)
 }
 func (tt *TimedTask) AddUnBanCallback(cb func(*UnBanCbArgs)) {
-	tt.unBanCallback.add(cb)
+	tt.unBanCallback.Add(cb)
 }
 
 func (tt *TimedTask) DelUnBanCallback(cb func(*UnBanCbArgs)) {
-	tt.unBanCallback.del(cb)
+	tt.unBanCallback.Del(cb)
 }
 
 func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 	go func() {
 		addCallbacks := make([]addCallback, 0)
-		tt.addCallback.getAll(&addCallbacks)
+		tt.addCallback.GetAll(&addCallbacks)
 		for _, cb := range addCallbacks {
 			cb(&AddCbArgs{info, err})
 		}
@@ -124,7 +123,7 @@ func (tt *TimedTask) invokeAddCallback(info *TaskInfo, err error) {
 func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	go func() {
 		cancelCallbacks := make([]cancelCallback, 0)
-		tt.cancelCallback.getAll(&cancelCallbacks)
+		tt.cancelCallback.GetAll(&cancelCallbacks)
 		for _, cb := range cancelCallbacks {
 			cb(&CancelCbArgs{key, err})
 		}
@@ -134,7 +133,7 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interface{}, err error, rid int) {
 	go func() {
 		executeCallbacks := make([]executeCallback, 0)
-		tt.executeCallback.getAll(&executeCallbacks)
+		tt.executeCallback.GetAll(&executeCallbacks)
 		for _, cb := range executeCallbacks {
 			cb(&ExecuteCbArgs{info, res, err, rid})
 		}
@@ -144,7 +143,7 @@ func (tt *TimedTask) invokeExecuteCallback(info *TaskInfo, res map[string]interf
 func (tt *TimedTask) invokeBanCallback(key string, err error) {
 	go func() {
 		banCallbacks := make([]banCallback, 0)
-		tt.banCallback.getAll(&banCallbacks)
+		tt.banCallback.GetAll(&banCallbacks)
 		for _, cb := range banCallbacks {
 			cb(&BanCbArgs{key, err})
 		}
@@ -154,25 +153,23 @@ func (tt *TimedTask) invokeBanCallback(key string, err error) {
 func (tt *TimedTask) invokeUnBanCallback(key string, err error) {
 	go func() {
 		unBanCallbacks := make([]unBanCallback, 0)
-		tt.unBanCallback.getAll(&unBanCallbacks)
+		tt.unBanCallback.GetAll(&unBanCallbacks)
 		for _, cb := range unBanCallbacks {
 			cb(&UnBanCbArgs{key, err})
 		}
 	}()
 }
 
-// func (tt *TimedTask) isExist(key string) (bool) {
-// 	return tt.tMap.isExist(key)
-// }
+
 
 func (tt *TimedTask) add(key string, task TaskObj, spec int) error {
-	if tt.tMap.isExist(key) {
+	if tt.tMap.IsExist(key) {
 		return ErrTaskIsExist
 	}
 	if tt.isBan(key) {
 		return ErrTaskIsBan
 	}
-	tt.tMap.add(key, NewTaskInfo(key, task, spec))
+	tt.tMap.Add(key, NewTaskInfo(key, task, spec))
 	tt.reSelectAfterUpdate()
 	return nil
 }
@@ -191,10 +188,10 @@ func (tt *TimedTask) Add(key string, task TaskObj, spec int) {
 }
 
 func (tt *TimedTask) cancel(key string) error {
-	if !tt.tMap.isExist(key) {
+	if !tt.tMap.IsExist(key) {
 		return ErrTaskIsNotExist
 	}
-	tt.tMap.delete(key)
+	tt.tMap.Delete(key)
 	tt.reSelectAfterUpdate()
 	return nil
 }
@@ -233,7 +230,7 @@ func (tt *TimedTask) banWithCb(key string, cb bool) {
 
 // 主动执行一次指定key任务
 func (tt *TimedTask) Execute(key string) {
-	ti := tt.tMap.get(key)
+	ti := tt.tMap.Get(key)
 	if ti != nil {
 		tt.tasks <- ti
 	}
@@ -289,10 +286,10 @@ func (tt *TimedTask) goExecutor() {
 				case <-tt.shutdownExecutorSign:
 					return
 				}
-				if tt.tMap.get(ti.Key) != nil {
-					tt.monitor.SetGoroutineRunning(rid, ti.Key)
+				if tt.tMap.Get(ti.key) != nil {
+					tt.monitor.SetGoroutineRunning(rid, ti.key)
 					res, err := ti.task()
-					ti.LastResult = &TaskResult{res, err}
+					ti.lastResult = &TaskResult{res, err}
 					tt.invokeExecuteCallback(ti, res, err, rid)
 					tt.monitor.SetGoroutineSleep(rid)
 				}
@@ -306,7 +303,7 @@ func (tt *TimedTask) goTimedIssue() {
 		tt.wg.Add(1)
 		defer tt.wg.Done()
 		for {
-			task, spec, ok := tt.tMap.selectNextExec()
+			task, spec, ok := tt.tMap.SelectNextExec()
 			if !ok {
 				// 任务列表中没有任务 等待刷新信号来到后 重新选择任务
 				select {
@@ -342,7 +339,7 @@ func (tt *TimedTask) updateMapAfterExec(task *TaskInfo) {
 	// 更新任务信息
 	task.UpdateAfterExecute()
 	// 写回到字典
-	tt.tMap.set(task.Key, task)
+	tt.tMap.Set(task.key, task)
 }
 
 // 触发更新定时最早一个被执行的定时任务
@@ -357,7 +354,7 @@ func (tt *TimedTask) reSelectAfterUpdate() {
 
 // 获取定时任务列表信息
 func (tt *TimedTask) GetTimedTaskInfo() map[string]*TaskInfo {
-	return tt.tMap.getAll()
+	return tt.tMap.GetAll()
 }
 
 // 获取指定id的线程信息

@@ -1,34 +1,36 @@
 package GoTaskv1
 
 import (
-	"sync"
 	"reflect"
+	"sync"
 )
 
-type funcMap struct {
-	fMap    sync.Map
+//type CbFunc func(v ...interface{}) (interface{}, error)
+
+type CbFuncMap struct {
+	fMap sync.Map
 }
 
-func newFuncMap() *funcMap {
-	return &funcMap{sync.Map{}}
+func NewCbFuncMap() *CbFuncMap {
+	return &CbFuncMap{sync.Map{}}
 }
 
-func (fm *funcMap) add(i interface{}) {
+func (fm *CbFuncMap) Add(i interface{}) {
 	p := reflect.ValueOf(i).Pointer()
 	fm.fMap.Store(p, i)
 }
 
-func (fm *funcMap) del(i interface{}) {
+func (fm *CbFuncMap) Del(i interface{}) {
 	p := reflect.ValueOf(i).Pointer()
 	fm.fMap.Delete(p)
 }
 
-func (fm *funcMap) getAll(out interface{}) int {
+func (fm *CbFuncMap) GetAll(out interface{}) int {
 	ro := reflect.ValueOf(out).Elem()
 	eo := make([]reflect.Value, 0)
-	
+
 	n := 0
-	
+
 	fm.fMap.Range(func(key, value interface{}) bool {
 		n += 1
 		eo = append(eo, reflect.ValueOf(value))
