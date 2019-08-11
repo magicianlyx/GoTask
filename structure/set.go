@@ -1,4 +1,4 @@
-package GoTaskv1
+package structure
 
 import (
 	"net"

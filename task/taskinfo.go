@@ -1,4 +1,4 @@
-package GoTaskv1
+package task
 
 import (
 	"time"
@@ -11,6 +11,13 @@ type TaskResult struct {
 	Err    error
 }
 
+func (tr *TaskResult) Clone() *TaskResult {
+	return &TaskResult{
+		Result: tr.Result,
+		Err:    tr.Err,
+	}
+}
+
 type TaskInfo struct {
 	Key        string      // 任务标志key
 	Task       TaskObj     // 任务方法
@@ -21,10 +28,25 @@ type TaskInfo struct {
 	Sche       ISchedule   // 任务计划
 	HasNext    bool        // 是否还有下一次执行
 	LastResult *TaskResult // 任务最后一次执行的结果
+	timer      TimerObj    // 计时器
+}
+
+// 开启计时器
+func (t *TaskInfo) TimerStart() {
+	t.timer = Timer()
+}
+
+// 结算计时器
+func (t *TaskInfo) TimerSettle() (spec time.Duration, start, end time.Time) {
+	if t.timer != nil {
+		return t.timer()
+	} else {
+		return 0, time.Time{}, time.Time{}
+	}
 }
 
 // 生成副本
-func (t *TaskInfo) clone() *TaskInfo {
+func (t *TaskInfo) Clone() *TaskInfo {
 	rt := &TaskInfo{}
 	rt.Key = t.Key
 	rt.Task = t.Task
@@ -34,6 +56,7 @@ func (t *TaskInfo) clone() *TaskInfo {
 	rt.Count = t.Count
 	rt.Sche = t.Sche
 	rt.HasNext = t.HasNext
+	rt.LastResult = t.LastResult.Clone()
 	return rt
 }
 
@@ -79,9 +102,8 @@ func NewTaskInfo(key string, task TaskObj, sche ISchedule) *TaskInfo {
 		AddTime:  now,
 		Count:    0,
 		Sche:     sche,
-		HasNext:  true,
 	}
-	ti.NextTime, _ = sche.expression(ti)
+	ti.NextTime, ti.HasNext = sche.expression(ti)
 	return ti
 }
 

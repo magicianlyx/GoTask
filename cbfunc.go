@@ -5,7 +5,6 @@ import (
 	"sync"
 )
 
-//type CbFunc func(v ...interface{}) (interface{}, error)
 
 type CbFuncMap struct {
 	fMap sync.Map

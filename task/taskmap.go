@@ -1,4 +1,4 @@
-package GoTaskv1
+package task
 
 import (
 	"sync"
@@ -44,7 +44,7 @@ func (tm *TaskMap) Delete(key string) {
 func (tm *TaskMap) Get(key string) *TaskInfo {
 	if v, ok := tm.tMap.Load(key); ok {
 		if v1, ok1 := v.(*TaskInfo); ok1 {
-			return v1.clone()
+			return v1.Clone()
 		}
 	}
 	return nil
@@ -102,7 +102,7 @@ func (tm *TaskMap) GetAll() map[string]*TaskInfo {
 		if !ok {
 			return true
 		}
-		m[k] = v.clone()
+		m[k] = v.Clone()
 		return true
 	})
 	return m
