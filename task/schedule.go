@@ -1,12 +1,15 @@
 package task
 
 import (
+	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"time"
 )
 
 type ISchedule interface {
 	expression(t *TaskInfo) (nt time.Time, isValid bool) // 表达式
 	record(t *TaskInfo, cs ...int) (et []time.Time)      // 索引执行记录 返回执行时刻 time为zero时说明还没被执行
+	ToString() string
 }
 
 type SpecSchedule struct {
@@ -31,6 +34,13 @@ func (p *SpecSchedule) record(t *TaskInfo, cs ...int) (et []time.Time) {
 		et = append(et, time.Time{})
 	}
 	return
+}
+
+func (p *SpecSchedule) ToString() string {
+	s, _ := jsoniter.MarshalToString(map[string]interface{}{
+		"spec": fmt.Sprintf("%.6fs", p.spec.Seconds()),
+	})
+	return s
 }
 
 type SpecTimeSchedule struct {
@@ -63,6 +73,14 @@ func (p *SpecTimeSchedule) record(t *TaskInfo, cs ...int) (et []time.Time) {
 	return
 }
 
+func (p *SpecTimeSchedule) ToString() string {
+	s, _ := jsoniter.MarshalToString(map[string]interface{}{
+		"time": p.time,
+		"spec": fmt.Sprintf("%.6fs", p.spec.Seconds()),
+	})
+	return s
+}
+
 type PlanSchedule struct {
 	tList []time.Time // 计划任务时间点 有次数限制
 }
@@ -91,12 +109,19 @@ func (p *PlanSchedule) record(t *TaskInfo, cs ...int) (et []time.Time) {
 	return et
 }
 
-//type ExpressionSchedule struct {
-//}
+func (p *PlanSchedule) ToString() string {
+	s, _ := jsoniter.MarshalToString(map[string]interface{}{
+		"tList": p.tList,
+	})
+	return s
+}
+
+// type ExpressionSchedule struct {
+// }
 //
-//// 任务计划
-//type Schedule struct {
+// // 任务计划
+// type Schedule struct {
 //	spec       time.Duration                       // 间隔时间
 //	tList      []time.Time                         // 计划任务时间点 有次数限制
 //	expression func(t *TaskInfo) (nt time.Time,isValid bool)  // 根据执行结果获取下一次执行时间的表达式
-//}
+// }

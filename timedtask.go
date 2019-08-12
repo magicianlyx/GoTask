@@ -288,20 +288,23 @@ func (tt *TimedTask) goExecutor() {
 					return
 				}
 				if tt.tMap.Get(ti.Key) != nil {
-					// 执行任务
 					tt.monitor.SetGoroutineRunning(rid, ti.Key)
+					// waitDuration, _, _ := ti.TimerSettle() // 统计任务等待时长
+					ti.TimerStart()
+					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
-					tt.monitor.SetGoroutineSleep(rid)
-
+					// executeDuration, _, _ := ti.TimerSettle() // 统计任务执行时长
+					
 					// 如果没有下一次的执行计划 那么将会清楚任务
 					if !ti.HasNextExecute() {
 						tt.tMap.Delete(ti.Key)
 					}
-
+					
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, rid)
-
+					tt.monitor.SetGoroutineSleep(rid)
+					
 				}
 			}
 		}(i)
@@ -323,13 +326,14 @@ func (tt *TimedTask) goTimedIssue() {
 					return
 				}
 			}
-
+			
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
 				ticker.Stop()
 				// 先更新任务信息再执行任务 减少时间误差
 				tt.updateMapAfterExec(task)
+				// task.TimerStart()
 				tt.tasks <- task
 				break
 			case <-tt.refreshSign:
