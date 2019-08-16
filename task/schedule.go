@@ -8,7 +8,7 @@ import (
 
 type ISchedule interface {
 	Expression(t *TaskInfo) (nt time.Time, isValid bool) // 表达式
-	Record(t *TaskInfo, cs ...int) (et []time.Time)      // 索引执行记录 返回执行时刻 time为zero时说明还没被执行
+	// Record(t *TaskInfo, cs ...int) (et []time.Time)      // 索引执行记录 返回执行时刻 time为zero时说明还没被执行
 	ToString() string
 }
 
@@ -61,17 +61,17 @@ func (p *SpecTimeSchedule) Expression(t *TaskInfo) (nt time.Time, isValid bool) 
 	return
 }
 
-func (p *SpecTimeSchedule) Record(t *TaskInfo, cs ...int) (et []time.Time) {
-	et = make([]time.Time, 0)
-	for i := range cs {
-		c := cs[i]
-		if t.Count >= c {
-			et = append(et, t.AddTime.Add(time.Duration(c)*p.spec))
-		}
-		et = append(et, time.Time{})
-	}
-	return
-}
+// func (p *SpecTimeSchedule) Record(t *TaskInfo, cs ...int) (et []time.Time) {
+// 	et = make([]time.Time, 0)
+// 	for i := range cs {
+// 		c := cs[i]
+// 		if t.Count >= c {
+// 			et = append(et, t.AddTime.Add(time.Duration(c)*p.spec))
+// 		}
+// 		et = append(et, time.Time{})
+// 	}
+// 	return
+// }
 
 func (p *SpecTimeSchedule) ToString() string {
 	s, _ := jsoniter.MarshalToString(map[string]interface{}{
@@ -97,17 +97,17 @@ func (p *PlanSchedule) Expression(t *TaskInfo) (nt time.Time, isValid bool) {
 	}
 }
 
-func (p *PlanSchedule) Record(t *TaskInfo, cs ...int) (et []time.Time) {
-	et = make([]time.Time, 0)
-	for i := range cs {
-		c := cs[i]
-		if c <= t.Count && c > 0 {
-			et = append(et, p.tList[c-1])
-		}
-		et = append(et, time.Time{})
-	}
-	return et
-}
+// func (p *PlanSchedule) Record(t *TaskInfo, cs ...int) (et []time.Time) {
+// 	et = make([]time.Time, 0)
+// 	for i := range cs {
+// 		c := cs[i]
+// 		if c <= t.Count && c > 0 {
+// 			et = append(et, p.tList[c-1])
+// 		}
+// 		et = append(et, time.Time{})
+// 	}
+// 	return et
+// }
 
 func (p *PlanSchedule) ToString() string {
 	s, _ := jsoniter.MarshalToString(map[string]interface{}{
@@ -136,16 +136,16 @@ func (e *EveryDaySchedule) Expression(t *TaskInfo) (nt time.Time, isValid bool) 
 	return nt, true
 }
 
-func (e *EveryDaySchedule) Record(t *TaskInfo, cs ...int) (et []time.Time) {
-	et = make([]time.Time, 0)
-	nt, _ := e.Expression(t)
-	et = append(et, nt)
-	for i := range cs {
-		c := cs[i]
-		et = append(et, nt.AddDate(0, 0, c))
-	}
-	return et
-}
+// func (e *EveryDaySchedule) Record(t *TaskInfo, cs ...int) (et []time.Time) {
+// 	et = make([]time.Time, 0)
+// 	nt, _ := e.Expression(t)
+// 	et = append(et, nt)
+// 	for i := range cs {
+// 		c := cs[i]
+// 		et = append(et, nt.AddDate(0, 0, c))
+// 	}
+// 	return et
+// }
 
 func (e *EveryDaySchedule) ToString() string {
 	return fmt.Sprintf("every day %d h %d m %d s %d ms", e.hour, e.minute, e.second, e.mSecond)
