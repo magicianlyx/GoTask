@@ -14,6 +14,9 @@ type ExecuteRecord struct {
 }
 
 func (e *ExecuteRecord) Clone() *ExecuteRecord {
+	if e == nil {
+		return nil
+	}
 	return &ExecuteRecord{
 		e.StartTime,
 		e.EndTime,
@@ -73,6 +76,9 @@ func (q *ExecuteRecordQueue) Peek() *ExecuteRecord {
 }
 
 func (q *ExecuteRecordQueue) Clone() *ExecuteRecordQueue {
+	if q == nil {
+		return nil
+	}
 	q.l.RLock()
 	defer q.l.RUnlock()
 	list := make([]*ExecuteRecord, 0)
@@ -101,6 +107,9 @@ type GoroutineInfo struct {
 }
 
 func (gi *GoroutineInfo) Clone() *GoroutineInfo {
+	if gi == nil {
+		return nil
+	}
 	return &GoroutineInfo{
 		ID:          gi.ID,
 		Status:      gi.Status,
@@ -165,6 +174,9 @@ func (m *Monitor) SetGoroutineRunning(id int, key string) {
 }
 
 func (m *Monitor) Clone() *Monitor {
+	if m == nil {
+		return nil
+	}
 	gis := make([]*GoroutineInfo, 0)
 	for _, gi := range m.GoroutineInfoList {
 		gis = append(gis, gi.Clone())

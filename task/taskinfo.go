@@ -12,6 +12,9 @@ type TaskResult struct {
 }
 
 func (tr *TaskResult) Clone() *TaskResult {
+	if tr == nil {
+		return nil
+	}
 	return &TaskResult{
 		Result: tr.Result,
 		Err:    tr.Err,
@@ -47,6 +50,9 @@ func (t *TaskInfo) TimerSettle() (spec time.Duration, start, end time.Time) {
 
 // 生成副本
 func (t *TaskInfo) Clone() *TaskInfo {
+	if t == nil {
+		return nil
+	}
 	rt := &TaskInfo{}
 	rt.Key = t.Key
 	rt.Task = t.Task
@@ -84,7 +90,7 @@ func (t *TaskInfo) NextScheduleTime() time.Time {
 func (t *TaskInfo) UpdateAfterExecute() {
 	t.Count += 1
 	t.LastTime = time.Now()
-	t.NextTime, t.HasNext = t.Sche.expression(t)
+	t.NextTime, t.HasNext = t.Sche.Expression(t)
 }
 
 // 是否还有下一次执行
@@ -103,7 +109,7 @@ func NewTaskInfo(key string, task TaskObj, sche ISchedule) *TaskInfo {
 		Count:    0,
 		Sche:     sche,
 	}
-	ti.NextTime, ti.HasNext = sche.expression(ti)
+	ti.NextTime, ti.HasNext = sche.Expression(ti)
 	return ti
 }
 
