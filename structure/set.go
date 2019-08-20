@@ -1,9 +1,8 @@
-package GoTaskv1
+package structure
 
 import (
-	"sync"
-	"fmt"
 	"net"
+	"sync"
 )
 
 // 无序集合 线程安全
@@ -18,7 +17,7 @@ func NewSet() *Set {
 func (s *Set) IsExist(key string) bool {
 	isExist := false
 	s.s.Range(func(k, _ interface{}) bool {
-		if fmt.Sprintf("%s", k) == key {
+		if kv, ok := k.(string); ok && kv == key {
 			isExist = true
 			return false
 		} else {

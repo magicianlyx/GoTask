@@ -1,19 +1,22 @@
-package GoTaskv1
+package profile
 
 import (
-	"time"
 	"sync"
+	"time"
 )
 
 // 执行记录
 type ExecuteRecord struct {
-	StartTime  time.Time
-	EndTime    time.Time
-	ElapseTime int    // 单位毫秒
-	Key        string // 执行的任务键
+	StartTime  time.Time // 任务执行开始时间
+	EndTime    time.Time // 任务执行完毕时间
+	ElapseTime int       // 执行消耗时间 单位毫秒
+	Key        string    // 执行的任务键
 }
 
 func (e *ExecuteRecord) Clone() *ExecuteRecord {
+	if e == nil {
+		return nil
+	}
 	return &ExecuteRecord{
 		e.StartTime,
 		e.EndTime,
@@ -22,9 +25,10 @@ func (e *ExecuteRecord) Clone() *ExecuteRecord {
 	}
 }
 
+// 任务执行记录队列
 type ExecuteRecordQueue struct {
 	l    sync.RWMutex
-	List []*ExecuteRecord
+	list []*ExecuteRecord
 	size int
 }
 
@@ -39,48 +43,49 @@ func NewExecuteRecordQueue(size int) *ExecuteRecordQueue {
 	}
 }
 
-func (q *ExecuteRecordQueue) push(v *ExecuteRecord) {
+func (q *ExecuteRecordQueue) Push(v *ExecuteRecord) {
 	q.l.Lock()
 	defer q.l.Unlock()
-	if len(q.List) >= q.size {
-		q.List = q.List[1:]
-		q.List = append(q.List, v)
-	} else {
-		q.List = append(q.List, v)
+	if len(q.list) >= q.size {
+		q.list = q.list[1:]
 	}
+	q.list = append(q.list, v)
 }
 
-func (q *ExecuteRecordQueue) pop() *ExecuteRecord {
+func (q *ExecuteRecordQueue) Pop() *ExecuteRecord {
 	q.l.Lock()
 	defer q.l.Unlock()
-	
-	if len(q.List) >= 1 {
-		o := q.List[0]
-		q.List = q.List[1:]
+
+	if len(q.list) >= 1 {
+		o := q.list[0]
+		q.list = q.list[1:]
 		return o
 	} else {
 		return nil
 	}
 }
 
-func (q *ExecuteRecordQueue) peek() *ExecuteRecord {
+func (q *ExecuteRecordQueue) Peek() *ExecuteRecord {
 	q.l.RLock()
 	defer q.l.RUnlock()
-	if len(q.List) >= 1 {
-		return q.List[0]
+	if len(q.list) >= 1 {
+		return q.list[0]
 	} else {
 		return nil
 	}
 }
 
 func (q *ExecuteRecordQueue) Clone() *ExecuteRecordQueue {
+	if q == nil {
+		return nil
+	}
 	q.l.RLock()
 	defer q.l.RUnlock()
-	list := make([]*ExecuteRecord,0)
-	for _, er := range q.List {
+	list := make([]*ExecuteRecord, 0)
+	for _, er := range q.list {
 		list = append(list, er.Clone())
 	}
-	return &ExecuteRecordQueue{List: list}
+	return &ExecuteRecordQueue{list: list}
 }
 
 const (
@@ -88,12 +93,13 @@ const (
 	GoroutineStatusActive = "Active"
 )
 
+// 线程信息
 type GoroutineInfo struct {
 	l           sync.RWMutex
 	ID          int                 // 线程ID
 	Status      string              // 当前状态
 	Key         string              // 正在执行的任务key
-	startTime   time.Time           // 任务开始时间
+	startTime   time.Time           // 任务开始时间 用来统计任务占用线程时间
 	StartTime   time.Time           // 线程启动时间
 	BusyTime    int                 // 忙碌时间 单位毫秒
 	LastNRecord *ExecuteRecordQueue // 线程最后n个执行记录
@@ -101,6 +107,9 @@ type GoroutineInfo struct {
 }
 
 func (gi *GoroutineInfo) Clone() *GoroutineInfo {
+	if gi == nil {
+		return nil
+	}
 	return &GoroutineInfo{
 		ID:          gi.ID,
 		Status:      gi.Status,
@@ -138,15 +147,16 @@ func (m *Monitor) SetGoroutineSleep(id int) {
 	gi := m.GoroutineInfoList[id]
 	gi.l.Lock()
 	defer gi.l.Unlock()
+	// 计算刚执行完毕的任务总结
 	now := time.Now()
 	elapseTime := int(now.Sub(gi.startTime).Nanoseconds() / 1e6)
-	gi.LastNRecord.push(&ExecuteRecord{
+	gi.LastNRecord.Push(&ExecuteRecord{
 		gi.startTime,
 		now,
 		elapseTime,
 		gi.Key,
 	})
-	
+
 	gi.Status = GoroutineStatusSleep
 	gi.Key = ""
 	gi.TaskCount = gi.TaskCount + 1
@@ -164,7 +174,10 @@ func (m *Monitor) SetGoroutineRunning(id int, key string) {
 }
 
 func (m *Monitor) Clone() *Monitor {
-	gis := make([]*GoroutineInfo,0)
+	if m == nil {
+		return nil
+	}
+	gis := make([]*GoroutineInfo, 0)
 	for _, gi := range m.GoroutineInfoList {
 		gis = append(gis, gi.Clone())
 	}
