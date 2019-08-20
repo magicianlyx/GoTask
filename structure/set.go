@@ -1,7 +1,6 @@
 package structure
 
 import (
-	"net"
 	"sync"
 )
 
@@ -28,7 +27,7 @@ func (s *Set) IsExist(key string) bool {
 }
 
 func (s *Set) Add(key string) {
-	s.s.Store(key, net.Interface{})
+	s.s.Store(key, struct{}{})
 }
 
 func (s *Set) Delete(key string) {

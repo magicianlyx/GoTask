@@ -1,6 +1,7 @@
 package profile
 
 import (
+	"github.com/magicianlyx/GoTask/structure"
 	"sync"
 	"time"
 )
@@ -27,65 +28,51 @@ func (e *ExecuteRecord) Clone() *ExecuteRecord {
 
 // 任务执行记录队列
 type ExecuteRecordQueue struct {
-	l    sync.RWMutex
-	list []*ExecuteRecord
-	size int
+	l sync.RWMutex
+	queue *structure.Queue
+	size  int
 }
 
 func NewExecuteRecordQueue(size int) *ExecuteRecordQueue {
-	if size == 0 {
+	if size <= 0 {
 		size = 10
 	}
 	return &ExecuteRecordQueue{
 		sync.RWMutex{},
-		[]*ExecuteRecord{},
+		structure.NewQueue(size),
 		size,
 	}
 }
 
 func (q *ExecuteRecordQueue) Push(v *ExecuteRecord) {
-	q.l.Lock()
-	defer q.l.Unlock()
-	if len(q.list) >= q.size {
-		q.list = q.list[1:]
-	}
-	q.list = append(q.list, v)
+	q.queue.Push(v)
 }
 
 func (q *ExecuteRecordQueue) Pop() *ExecuteRecord {
-	q.l.Lock()
-	defer q.l.Unlock()
-
-	if len(q.list) >= 1 {
-		o := q.list[0]
-		q.list = q.list[1:]
-		return o
-	} else {
+	v := q.queue.Pop()
+	if v == nil {
 		return nil
 	}
+	return v.(*ExecuteRecord)
 }
 
 func (q *ExecuteRecordQueue) Peek() *ExecuteRecord {
-	q.l.RLock()
-	defer q.l.RUnlock()
-	if len(q.list) >= 1 {
-		return q.list[0]
-	} else {
+	v := q.queue.Peek()
+	if v == nil {
 		return nil
 	}
+	return v.(*ExecuteRecord)
 }
 
 func (q *ExecuteRecordQueue) Clone() *ExecuteRecordQueue {
 	if q == nil {
 		return nil
 	}
-	q.l.RLock()
-	defer q.l.RUnlock()
-	list := make([]*ExecuteRecord, 0)
-	for _, er := range q.list {
-		list = append(list, er.Clone())
+	return &ExecuteRecordQueue{
+		l:     sync.RWMutex{},
+		queue: q.queue.Clone(),
+		size:  q.size,
 	}
-	return &ExecuteRecordQueue{list: list}
 }
 
 const (
@@ -110,15 +97,17 @@ func (gi *GoroutineInfo) Clone() *GoroutineInfo {
 	if gi == nil {
 		return nil
 	}
-	return &GoroutineInfo{
-		ID:          gi.ID,
-		Status:      gi.Status,
-		Key:         gi.Key,
-		StartTime:   gi.StartTime,
-		LastNRecord: gi.LastNRecord.Clone(),
-		BusyTime:    gi.BusyTime,
-		TaskCount:   gi.TaskCount,
+	ngi := &GoroutineInfo{}
+	ngi.ID = gi.ID
+	ngi.Status = gi.Status
+	ngi.Key = gi.Key
+	ngi.StartTime = gi.StartTime
+	ngi.BusyTime = gi.BusyTime
+	if gi.LastNRecord != nil {
+		ngi.LastNRecord = gi.LastNRecord.Clone()
 	}
+	ngi.TaskCount = gi.TaskCount
+	return ngi
 }
 
 type Monitor struct {
