@@ -13,23 +13,15 @@ func NewSet() *Set {
 	return &Set{sync.Map{}}
 }
 
-func (s *Set) IsExist(key string) bool {
-	isExist := false
-	s.s.Range(func(k, _ interface{}) bool {
-		if kv, ok := k.(string); ok && kv == key {
-			isExist = true
-			return false
-		} else {
-			return true
-		}
-	})
+func (s *Set) IsExist(key interface{}) bool {
+	_, isExist := s.s.Load(key)
 	return isExist
 }
 
-func (s *Set) Add(key string) {
+func (s *Set) Add(key interface{}) {
 	s.s.Store(key, struct{}{})
 }
 
-func (s *Set) Delete(key string) {
+func (s *Set) Delete(key interface{}) {
 	s.s.Delete(key)
 }

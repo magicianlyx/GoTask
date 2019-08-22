@@ -34,19 +34,19 @@ type TaskInfo struct {
 	timer      TimerObj    // 计时器
 }
 
-// 开启计时器
-func (t *TaskInfo) TimerStart() {
-	t.timer = Timer()
-}
-
-// 结算计时器
-func (t *TaskInfo) TimerSettle() (spec time.Duration, start, end time.Time) {
-	if t.timer != nil {
-		return t.timer()
-	} else {
-		return 0, time.Time{}, time.Time{}
-	}
-}
+// // 开启计时器
+// func (t *TaskInfo) TimerStart() {
+// 	t.timer = Timer()
+// }
+//
+// // 结算计时器
+// func (t *TaskInfo) TimerSettle() (spec time.Duration, start, end time.Time) {
+// 	if t.timer != nil {
+// 		return t.timer()
+// 	} else {
+// 		return 0, time.Time{}, time.Time{}
+// 	}
+// }
 
 // 生成副本
 func (t *TaskInfo) Clone() *TaskInfo {
