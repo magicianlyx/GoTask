@@ -329,7 +329,7 @@ func (tt *TimedTask) goTimedIssue() {
 			case <-ticker.C:
 				ticker.Stop()
 				// 先更新任务信息再执行任务 防止调度出问题
-				tt.updateMapAfterExec(task)
+				tt.updateMapBeforeExec(task)
 				tt.tasks <- task
 				break
 			case <-tt.refreshSign:
@@ -343,9 +343,9 @@ func (tt *TimedTask) goTimedIssue() {
 	}()
 }
 
-func (tt *TimedTask) updateMapAfterExec(task *task.TaskInfo) {
+func (tt *TimedTask) updateMapBeforeExec(task *task.TaskInfo) {
 	// 更新任务信息
-	task.UpdateAfterExecute()
+	task.Update()
 	// 写回到字典 更新
 	tt.tMap.Set(task.Key, task)
 }

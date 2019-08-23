@@ -87,7 +87,7 @@ func (t *TaskInfo) NextScheduleTime() time.Time {
 
 // 执行后调用 调整任务信息
 // 返回是否还有下一次执行
-func (t *TaskInfo) UpdateAfterExecute() {
+func (t *TaskInfo) Update() {
 	t.Count += 1
 	t.LastTime = time.Now()
 	t.NextTime, t.HasNext = t.Sche.Expression(t)
