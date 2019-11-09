@@ -6,12 +6,14 @@ import (
 	"time"
 )
 
+// 任务调度接口
 type ISchedule interface {
 	Expression(t *TaskInfo) (nt time.Time, isValid bool) // 表达式
 	// Record(t *TaskInfo, cs ...int) (et []time.Time)      // 索引执行记录 返回执行时刻 time为zero时说明还没被执行
 	ToString() string
 }
 
+// 指定时长循环调度
 type SpecSchedule struct {
 	spec time.Duration
 }
@@ -43,6 +45,7 @@ func (p *SpecSchedule) ToString() string {
 	return s
 }
 
+// 指定时长指定次数调度器
 type SpecTimeSchedule struct {
 	spec time.Duration
 	time int
@@ -69,6 +72,7 @@ func (p *SpecTimeSchedule) ToString() string {
 	return s
 }
 
+// 指定时间点调度器
 type PlanSchedule struct {
 	tList []time.Time // 计划任务时间点 有次数限制
 }
@@ -92,6 +96,7 @@ func (p *PlanSchedule) ToString() string {
 	return s
 }
 
+// 每日指定时刻调度器
 type EveryDaySchedule struct {
 	hour    int
 	minute  int
