@@ -28,7 +28,7 @@ func (e *ExecuteRecord) Clone() *ExecuteRecord {
 
 // 任务执行记录队列
 type ExecuteRecordQueue struct {
-	l sync.RWMutex
+	l     sync.RWMutex
 	queue *structure.Queue
 	size  int
 }
