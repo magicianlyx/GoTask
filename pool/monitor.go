@@ -41,7 +41,6 @@ type StatusSwitch struct {
 }
 
 func NewStatusSwitch(preStatus, status GoroutineStatus) *StatusSwitch {
-	printf("新建一个状态切换信息对象")
 	return &StatusSwitch{
 		Time:      time.Now(),
 		PreStatus: preStatus,

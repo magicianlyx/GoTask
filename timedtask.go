@@ -62,7 +62,8 @@ func NewTimedTask(routineCount int) *TimedTask {
 		profile.NewMonitor(routineCount),
 		&sync.WaitGroup{},
 	}
-	tt.goExecutor()
+	// tt.goExecutor()
+	tt.goExecutorV2()
 	tt.goTimedIssue()
 	return tt
 }
@@ -328,9 +329,11 @@ func (tt *TimedTask) goExecutorV2() {
 				grd.Stop()
 				return
 			}
+			// 构成一个任务
 			task := func(gid int) {
 				if tt.tMap.Get(ti.Key) != nil {
 					tt.monitor.SetGoroutineRunning(gid, ti.Key)
+					
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
@@ -345,6 +348,8 @@ func (tt *TimedTask) goExecutorV2() {
 					tt.monitor.SetGoroutineSleep(gid)
 				}
 			}
+			
+			// 向动态线程池派发一个任务
 			grd.Put(task)
 		}
 	}()
