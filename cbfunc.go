@@ -5,7 +5,6 @@ import (
 	"sync"
 )
 
-
 type CbFuncMap struct {
 	fMap sync.Map
 }

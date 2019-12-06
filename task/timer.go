@@ -15,4 +15,3 @@ func Timer() TimerObj {
 		return
 	}
 }
-

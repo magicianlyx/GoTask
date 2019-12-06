@@ -2,6 +2,7 @@ package GoTaskv1
 
 import (
 	"errors"
+	"github.com/magicianlyx/GoTask/pool"
 	"github.com/magicianlyx/GoTask/profile"
 	"github.com/magicianlyx/GoTask/structure"
 	"github.com/magicianlyx/GoTask/task"
@@ -61,7 +62,8 @@ func NewTimedTask(routineCount int) *TimedTask {
 		profile.NewMonitor(routineCount),
 		&sync.WaitGroup{},
 	}
-	tt.goExecutor()
+	// tt.goExecutor()
+	tt.goExecutorV2()
 	tt.goTimedIssue()
 	return tt
 }
@@ -210,7 +212,7 @@ func (tt *TimedTask) Cancel(key string) {
 	tt.cancelWithCb(key, true)
 }
 
-func (tt *TimedTask) ban(key string) (error) {
+func (tt *TimedTask) ban(key string) error {
 	if tt.isBan(key) {
 		return ErrTaskIsBan
 	} else {
@@ -263,17 +265,20 @@ func (tt *TimedTask) UnBan(key string) {
 	tt.unBanWithCb(key, true)
 }
 
-func (tt *TimedTask) isBan(key string) (bool) {
+func (tt *TimedTask) isBan(key string) bool {
 	return tt.bMap.IsExist(key)
 }
 
-func (tt *TimedTask) IsBan(key string) (bool) {
+func (tt *TimedTask) IsBan(key string) bool {
 	tt.l.RLock()
 	b := tt.isBan(key)
 	tt.l.RUnlock()
 	return b
 }
 
+// FIXME
+// 后面会使用动态线程池去执行这部分操作
+// 就没有goExecutor函数 直接将函数使用put抛给动态线程池完成
 func (tt *TimedTask) goExecutor() {
 	for i := 0; i < tt.routineCount; i++ {
 		go func(rid int) {
@@ -292,20 +297,62 @@ func (tt *TimedTask) goExecutor() {
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
-					
+
 					// 如果没有下一次的执行计划 那么将会清除任务
 					if !ti.HasNextExecute() {
 						tt.tMap.Delete(ti.Key)
 					}
-					
+
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, rid)
 					tt.monitor.SetGoroutineSleep(rid)
-					
+
 				}
 			}
 		}(i)
 	}
+}
+
+func (tt *TimedTask) goExecutorV2() {
+
+	grd := pool.NewGoroutinePool(&pool.Options{})
+
+	go func() {
+		tt.wg.Add(1)
+		defer tt.wg.Done()
+		for {
+			var ti *task.TaskInfo
+			select {
+			case ti = <-tt.tasks:
+				break
+			case <-tt.shutdownExecutorSign:
+				grd.Stop()
+				return
+			}
+			// 构成一个任务
+			task := func(gid int) {
+				if tt.tMap.Get(ti.Key) != nil {
+					tt.monitor.SetGoroutineRunning(gid, ti.Key)
+					
+					// 执行任务
+					res, err := ti.Task()
+					ti.LastResult = &task.TaskResult{res, err}
+
+					// 如果没有下一次的执行计划 那么将会清除任务
+					if !ti.HasNextExecute() {
+						tt.tMap.Delete(ti.Key)
+					}
+
+					// 执行回调
+					tt.invokeExecuteCallback(ti, res, err, gid)
+					tt.monitor.SetGoroutineSleep(gid)
+				}
+			}
+			
+			// 向动态线程池派发一个任务
+			grd.Put(task)
+		}
+	}()
 }
 
 func (tt *TimedTask) goTimedIssue() {
@@ -323,7 +370,7 @@ func (tt *TimedTask) goTimedIssue() {
 					return
 				}
 			}
-			
+
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
