@@ -86,11 +86,11 @@ func NewRecentRecord(d time.Duration) *RecentRecord {
 // 获取最近的状态总结
 func (l *RecentRecord) GetRecentSettle() map[GoroutineStatus]time.Duration {
 	l.AdjustRecord()
-	o := make(map[GoroutineStatus]time.Duration)
 	m := l.Clone() // 创建一个副本再去统计
 	mLen := len(m)
 	e := time.Now()
-
+	
+	o := make(map[GoroutineStatus]time.Duration)
 	for i := mLen - 1; i >= 0; i-- {
 		v := m[i]
 		s := v.Time
@@ -103,10 +103,10 @@ func (l *RecentRecord) GetRecentSettle() map[GoroutineStatus]time.Duration {
 
 // 调整 去除过期的切换记录
 func (l *RecentRecord) AdjustRecord() {
-	// 计算有效时间最早点
+	// 计算有效时间最早时刻
 	now := time.Now()
 	limit := now.Add(-l.d)
-
+	
 	l.l.Lock()
 	// 获取有效时间内记录
 	sLen := len(l.m)
@@ -137,7 +137,7 @@ func (l *RecentRecord) AdjustRecord() {
 			l.m = append([]*StatusSwitch{prev}, l.m[limIdx:]...)
 		}
 	}
-
+	
 	l.l.Unlock()
 }
 
@@ -265,11 +265,11 @@ func (g *GoroutineSettle) SwitchRoutineStatus(status GoroutineStatus) {
 		p.Stop()
 		g.store(preStatus, p)
 	}
-
+	
 	s := g.load(status)
 	s.Start()
 	g.store(status, s)
-
+	
 	g.lr.AddSwitchRecord(preStatus, status)
 }
 
@@ -302,13 +302,16 @@ func (g *GoroutineSettle) GetRecentSettle() map[GoroutineStatus]time.Duration {
 
 // 动态线程池监控器
 type DynamicPoolMonitor struct {
-	cl                 sync.RWMutex // 锁
-	currentActiveCount int64        // 当前活跃线程数
-	activeCountPeak    int64        // 活跃线程最高峰值
-	sl                 sync.RWMutex // 锁
-	s                  sync.Map     // 各个状态汇总记录 map[GoroutineStatus]time.Duration
-	ml                 sync.RWMutex // 锁
-	m                  sync.Map     // map[goroutine_id]*GoroutineSettle
+	cl sync.RWMutex // 锁
+	
+	currentActiveCount int64 // 当前活跃线程数
+	activeCountPeak    int64 // 活跃线程最高峰值
+	
+	sl sync.RWMutex // 锁
+	s  sync.Map     // 各个状态汇总记录 map[GoroutineStatus]time.Duration
+	
+	ml sync.RWMutex // 锁
+	m  sync.Map     // map[goroutine_id]*GoroutineSettle
 }
 
 func (m *DynamicPoolMonitor) AddSettle(sl map[GoroutineStatus]*Latency) {
@@ -335,7 +338,7 @@ func (m *DynamicPoolMonitor) GetSettle() map[GoroutineStatus]time.Duration {
 			o[status] += settle.AmountDuration
 		}
 	}
-
+	
 	m.s.Range(func(key, value interface{}) bool {
 		status := key.(GoroutineStatus)
 		elapse := value.(time.Duration)
@@ -364,6 +367,11 @@ func (m *DynamicPoolMonitor) newGoroutineID() int {
 		}
 	}
 	return -1
+}
+
+// 清除一个线程记录
+func (m *DynamicPoolMonitor) gidCollect(gid int) {
+	m.m.Delete(gid)
 }
 
 // 状态切换
@@ -466,14 +474,14 @@ func (m *DynamicPoolMonitor) GetRecentSettle(gid int) map[GoroutineStatus]time.D
 
 // 获取指定线程的最近活跃时长比例
 func (m *DynamicPoolMonitor) GetRecentActiveRatio(gid int) float64 {
-
+	
 	if v := m.getM(gid); v != nil {
 		m := v.GetRecentSettle()
 		c := m[GoroutineStatusActive]
-
+		
 		s := v.GetSurvivalDuration()
 		s = time.Duration(int64(math.Min(float64(int64(CaseRecentDuration)), float64(int64(s)))))
-
+		
 		return float64(c) / float64(s)
 	}
 	return 0.0
@@ -513,7 +521,7 @@ func (m *DynamicPoolMonitor) Switch(gid int) GoroutineStatus {
 func (m *DynamicPoolMonitor) Construct() int {
 	gid := m.newGoroutineID()
 	s := NewGoroutineSettle(CaseRecentDuration)
-
+	
 	m.ml.Lock()
 	m.setM(gid, s)
 	m.ml.Unlock()
@@ -527,6 +535,6 @@ func (m *DynamicPoolMonitor) Destroy(gid int) {
 	}
 	m.AddSettle(m.GetGoroutineSettle(gid))
 	m.ml.Lock()
-	m.m.Delete(gid)
+	m.gidCollect(gid)
 	m.ml.Unlock()
 }

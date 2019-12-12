@@ -43,7 +43,7 @@ type TimedTask struct {
 	wg                   *sync.WaitGroup
 }
 
-func NewTimedTask(routineCount int) *TimedTask {
+func NewTimedTask(maxRoutineCount int) *TimedTask {
 	tt := &TimedTask{
 		sync.RWMutex{},
 		task.NewTaskMap(),
@@ -53,17 +53,17 @@ func NewTimedTask(routineCount int) *TimedTask {
 		0,
 		make(chan struct{}),
 		make(chan struct{}),
-		routineCount,
+		maxRoutineCount,
 		NewCbFuncMap(),
 		NewCbFuncMap(),
 		NewCbFuncMap(),
 		NewCbFuncMap(),
 		NewCbFuncMap(),
-		profile.NewMonitor(routineCount),
+		profile.NewMonitor(maxRoutineCount),
 		&sync.WaitGroup{},
 	}
 	// tt.goExecutor()
-	tt.goExecutorV2()
+	tt.goExecutorV2(maxRoutineCount)
 	tt.goTimedIssue()
 	return tt
 }
@@ -297,26 +297,29 @@ func (tt *TimedTask) goExecutor() {
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
-
+					
 					// 如果没有下一次的执行计划 那么将会清除任务
 					if !ti.HasNextExecute() {
 						tt.tMap.Delete(ti.Key)
 					}
-
+					
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, rid)
 					tt.monitor.SetGoroutineSleep(rid)
-
+					
 				}
 			}
 		}(i)
 	}
 }
 
-func (tt *TimedTask) goExecutorV2() {
-
-	grd := pool.NewGoroutinePool(&pool.Options{})
-
+func (tt *TimedTask) goExecutorV2(maxRoutineCount int) {
+	options := &pool.Options{
+		GoroutineLimit: maxRoutineCount,
+	}
+	
+	grd := pool.NewGoroutinePool(options)
+	
 	go func() {
 		tt.wg.Add(1)
 		defer tt.wg.Done()
@@ -337,12 +340,12 @@ func (tt *TimedTask) goExecutorV2() {
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
-
+					
 					// 如果没有下一次的执行计划 那么将会清除任务
 					if !ti.HasNextExecute() {
 						tt.tMap.Delete(ti.Key)
 					}
-
+					
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, gid)
 					tt.monitor.SetGoroutineSleep(gid)
@@ -370,7 +373,7 @@ func (tt *TimedTask) goTimedIssue() {
 					return
 				}
 			}
-
+			
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
