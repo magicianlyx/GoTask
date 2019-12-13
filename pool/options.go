@@ -19,7 +19,7 @@ func NewDefaultOptions() *Options {
 		AutoMonitorDuration: time.Minute * 5,
 		CloseLessThanF:      0.5,
 		NewGreaterThanF:     0.9,
-		GoroutineLimit:      runtime.NumCPU() * 10,
+		GoroutineLimit:      runtime.NumCPU() * 3,
 		TaskChannelSize:     runtime.NumCPU() * 1000,
 	}
 }

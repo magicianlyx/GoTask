@@ -3,10 +3,10 @@ package pool
 import "time"
 
 // 任务函数 gid为执行该任务的线程id
-type taskObj func(gid int)
+type TaskObj func(gid int)
 
 type GoroutinePool struct {
-	c         chan taskObj
+	c         chan TaskObj
 	mainClose chan struct{} // 停止所有线程信号
 	M         *DynamicPoolMonitor
 	options   *Options
@@ -16,13 +16,13 @@ func NewGoroutinePool(options *Options) *GoroutinePool {
 	options = options.Clone()
 	options.fillDefaultOptions()
 	return &GoroutinePool{
-		c:       make(chan taskObj, options.TaskChannelSize),
+		c:       make(chan TaskObj, options.TaskChannelSize),
 		M:       NewDynamicPoolMonitor(),
 		options: options,
 	}
 }
 
-func (g *GoroutinePool) Put(obj taskObj) {
+func (g *GoroutinePool) Put(obj TaskObj) {
 	g.c <- obj
 	if g.M.GetCurrentActiveCount() == 0 {
 		// 无活动线程时新建线程
