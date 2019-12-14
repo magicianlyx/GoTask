@@ -62,8 +62,8 @@ func NewTimedTask(maxRoutineCount int) *TimedTask {
 		profile.NewMonitor(maxRoutineCount),
 		&sync.WaitGroup{},
 	}
-	tt.goExecutor()
-	// tt.goExecutorV2(maxRoutineCount)
+	//tt.goExecutor()
+	tt.goExecutorV2(maxRoutineCount)
 	tt.goTimedIssue()
 	return tt
 }
