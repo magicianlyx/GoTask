@@ -140,7 +140,57 @@ func (g *LatencyMap) Stop(status GoroutineStatus) {
 	g.getOrCreate(status).Stop()
 }
 
-// 单个线程信息总结
+// 单线程状态总结（非线程安全）
+type StatusSettle struct {
+	status   GoroutineStatus
+	duration time.Duration
+}
+
+func NewStatusSettle(status GoroutineStatus, duration time.Duration) *StatusSettle {
+	return &StatusSettle{
+		status:   status,
+		duration: duration,
+	}
+}
+
+func (s *StatusSettle) AddDuration(duration time.Duration) {
+	s.duration += duration
+}
+
+// 多线程状态总结（线程安全）
+type StatusSettleMap struct {
+	l sync.RWMutex
+	m sync.Map
+}
+
+func (m *StatusSettleMap) getOrCreate(status GoroutineStatus, duration time.Duration) *StatusSettle {
+	if v, ok := m.m.Load(status); ok {
+		if l, ok := v.(*StatusSettle); ok {
+			return l
+		} else {
+			m.m.Delete(status)
+		}
+	}
+	settle := NewStatusSettle(status, duration)
+	m.m.Store(status, settle)
+	return settle
+}
+
+func (m *StatusSettleMap) set(status GoroutineStatus, settle *StatusSettle) {
+	m.m.Store(status, settle)
+}
+
+func (m *StatusSettleMap) delete(status GoroutineStatus) {
+	m.m.Delete(status)
+}
+
+func (m *StatusSettleMap) AddStatusDuration(status GoroutineStatus, duration time.Duration) {
+	m.l.Lock()
+	defer m.l.Unlock()
+	m.getOrCreate(status, 0).AddDuration(duration)
+}
+
+// 单个线程信息总结（非强一致）
 // FIXME PS：目前没有保证同一时刻s，m，lr 信息一致；如果要求状态信息完全同步的需要在结构体加锁及时间变量统一
 type GoroutineSettle struct {
 	s          atomic.Value  // 线程当前状态 GoroutineStatus
@@ -199,53 +249,4 @@ func (g *GoroutineSettle) GetStatusSettle() map[GoroutineStatus]*Latency {
 // 获取最近时间状态总结
 func (g *GoroutineSettle) GetRecentStatusSettle() map[GoroutineStatus]time.Duration {
 	return g.lr.GetRecentSettle()
-}
-
-// 状态总结
-type StatusSettle struct {
-	status   GoroutineStatus
-	duration time.Duration
-}
-
-func NewStatusSettle(status GoroutineStatus, duration time.Duration) *StatusSettle {
-	return &StatusSettle{
-		status:   status,
-		duration: duration,
-	}
-}
-
-func (s *StatusSettle) AddDuration(duration time.Duration) {
-	s.duration += duration
-}
-
-type StatusSettleMap struct {
-	l sync.RWMutex
-	m sync.Map
-}
-
-func (m *StatusSettleMap) getOrCreate(status GoroutineStatus, duration time.Duration) *StatusSettle {
-	if v, ok := m.m.Load(status); ok {
-		if l, ok := v.(*StatusSettle); ok {
-			return l
-		} else {
-			m.m.Delete(status)
-		}
-	}
-	settle := NewStatusSettle(status, duration)
-	m.m.Store(status, settle)
-	return settle
-}
-
-func (m *StatusSettleMap) set(status GoroutineStatus, settle *StatusSettle) {
-	m.m.Store(status, settle)
-}
-
-func (m *StatusSettleMap) delete(status GoroutineStatus) {
-	m.m.Delete(status)
-}
-
-func (m *StatusSettleMap) AddStatusDuration(status GoroutineStatus, duration time.Duration) {
-	m.l.Lock()
-	defer m.l.Unlock()
-	m.getOrCreate(status, 0).AddDuration(duration)
 }
