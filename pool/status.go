@@ -27,6 +27,7 @@ func (s GoroutineStatus) IsValid() bool {
 	return s != GoroutineStatusNone
 }
 
+// 状态转移
 func SwitchStatus(p GoroutineStatus) (s GoroutineStatus) {
 	switch p {
 	case GoroutineStatusNone:
@@ -50,6 +51,14 @@ type StatusSwitch struct {
 }
 
 func NewStatusSwitch(preStatus, status GoroutineStatus) *StatusSwitch {
+	if preStatus == status {
+		// 非法逻辑
+		printf(
+			"can not transfer status from `%s` to `%s`\r\n",
+			preStatus.ToString(),
+			status.ToString(),
+		)
+	}
 	return &StatusSwitch{
 		Time:      time.Now(),
 		PreStatus: preStatus,
@@ -95,7 +104,8 @@ func NewRecentRecord(d time.Duration) *RecentRecord {
 // 获取最近的状态总结
 func (l *RecentRecord) GetRecentSettle() map[GoroutineStatus]time.Duration {
 	l.AdjustRecord()
-	m := l.Clone() // 创建一个副本再去统计
+	lc := l.Clone() // 创建一个副本再去统计
+	m := lc.m
 	mLen := len(m)
 	e := time.Now()
 
@@ -117,6 +127,7 @@ func (l *RecentRecord) AdjustRecord() {
 	limit := now.Add(-l.d)
 
 	l.l.Lock()
+	defer l.l.Unlock()
 	// 获取有效时间内记录
 	sLen := len(l.m)
 	var limIdx = sLen
@@ -126,7 +137,7 @@ func (l *RecentRecord) AdjustRecord() {
 			break
 		}
 	}
-	// 0-limiIdx为超出有效时间的记录
+	// 0-limIdx为超出有效时间的记录
 	if limIdx == 0 {
 		// 所有记录在有效时间内
 		// 全部保留
@@ -146,25 +157,27 @@ func (l *RecentRecord) AdjustRecord() {
 			l.m = append([]*StatusSwitch{prev}, l.m[limIdx:]...)
 		}
 	}
-
-	l.l.Unlock()
 }
 
 // 添加切换记录
 func (l *RecentRecord) AddSwitchRecord(preStatus, status GoroutineStatus) {
 	l.l.Lock()
+	defer l.l.Unlock()
 	l.m = append(l.m, NewStatusSwitch(preStatus, status))
-	l.l.Unlock()
 }
 
 // 生成副本
-func (l *RecentRecord) Clone() []*StatusSwitch {
-	r := make([]*StatusSwitch, 0)
+func (l *RecentRecord) Clone() *RecentRecord {
 	l.l.RLock()
+	defer l.l.RUnlock()
+	r := make([]*StatusSwitch, 0)
 	for i := range l.m {
 		s := l.m[i]
 		r = append(r, s.Clone())
 	}
-	l.l.RUnlock()
-	return r
+	return &RecentRecord{
+		l: sync.RWMutex{},
+		d: l.d,
+		m: r,
+	}
 }

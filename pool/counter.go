@@ -17,6 +17,7 @@ func NewCounter() *Counter {
 	}
 }
 
+// 自增
 func (c *Counter) Inc() int64 {
 	c.l.Lock()
 	defer c.l.Unlock()
@@ -27,6 +28,7 @@ func (c *Counter) Inc() int64 {
 	return c.x
 }
 
+// 自减
 func (c *Counter) Dec() int64 {
 	c.l.Lock()
 	defer c.l.Unlock()
@@ -34,12 +36,14 @@ func (c *Counter) Dec() int64 {
 	return c.x
 }
 
+// 获取峰值
 func (c *Counter) GetMax() int64 {
 	c.l.RLock()
 	defer c.l.RUnlock()
 	return c.max
 }
 
+// 获取值
 func (c *Counter) Get() int64 {
 	c.l.RLock()
 	defer c.l.RUnlock()
