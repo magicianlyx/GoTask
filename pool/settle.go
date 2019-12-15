@@ -104,14 +104,14 @@ func (g *LatencyMap) set(status GoroutineStatus, l *Latency) {
 	g.m.Store(status, l)
 }
 
-func (g *LatencyMap) GetAll() map[GoroutineStatus]*Latency {
+func (g *LatencyMap) GetAll() map[GoroutineStatus]time.Duration {
 	g.l.RLock()
 	defer g.l.RUnlock()
 	return g.getAll()
 }
 
-func (g *LatencyMap) getAll() map[GoroutineStatus]*Latency {
-	r := make(map[GoroutineStatus]*Latency)
+func (g *LatencyMap) getAll() map[GoroutineStatus]time.Duration {
+	r := make(map[GoroutineStatus]time.Duration)
 	g.m.Range(func(key, value interface{}) bool {
 		var sk GoroutineStatus
 		var sv *Latency
@@ -129,7 +129,7 @@ func (g *LatencyMap) getAll() map[GoroutineStatus]*Latency {
 			g.m.Delete(key)
 			return true
 		}
-		r[sk] = sv
+		r[sk] = sv.amount
 		return true
 	})
 	return r
@@ -227,6 +227,32 @@ func (m *StatusSettleMap) getOrCreate(status GoroutineStatus, duration time.Dura
 	return settle
 }
 
+func (m *StatusSettleMap) getAll() map[GoroutineStatus]time.Duration {
+	multiStatusDuration := make(map[GoroutineStatus]time.Duration)
+	m.m.Range(func(key, value interface{}) bool {
+		var gs GoroutineStatus
+		var duration time.Duration
+
+		if k, ok := key.(GoroutineStatus); ok {
+			gs = k
+		} else {
+			m.m.Delete(key)
+			return true
+		}
+
+		if v, ok := value.(*StatusSettle); ok {
+			duration = v.duration
+		} else {
+			m.m.Delete(key)
+			return true
+		}
+
+		multiStatusDuration[gs] = multiStatusDuration[gs] + duration
+		return true
+	})
+	return multiStatusDuration
+}
+
 func (m *StatusSettleMap) set(status GoroutineStatus, settle *StatusSettle) {
 	m.m.Store(status, settle)
 }
@@ -248,6 +274,12 @@ func (m *StatusSettleMap) AddMultiStatusDuration(multiStatusDuration map[Gorouti
 		duration := multiStatusDuration[status]
 		m.getOrCreate(status, 0).AddDuration(duration)
 	}
+}
+
+func (m *StatusSettleMap) GetAllStatusDuration() map[GoroutineStatus]time.Duration {
+	m.l.RLock()
+	defer m.l.RUnlock()
+	return m.getAll()
 }
 
 // 单个线程信息总结（线程安全 但非强一致）
@@ -312,10 +344,10 @@ func (g *GoroutineSettle) AutoSwitchGoRoutineStatus() GoroutineStatus {
 }
 
 // 获取所有时间状态总结
-func (g *GoroutineSettle) GetStatusSettle() *LatencyMap {
+func (g *GoroutineSettle) GetStatusSettle() map[GoroutineStatus]time.Duration {
 	g.l.RLock()
 	defer g.l.RUnlock()
-	return g.m.Clone()
+	return g.m.GetAll()
 }
 
 // 获取最近时间状态总结
@@ -386,13 +418,28 @@ func (m *GoroutineSettleMap) AutoSwitchGoRoutineStatus(gid GoroutineUID) Gorouti
 }
 
 // 获取所有时间状态总结
-func (m *GoroutineSettleMap) GetStatusSettle(gid GoroutineUID) *LatencyMap {
+func (m *GoroutineSettleMap) GetStatusSettle(gid GoroutineUID) map[GoroutineStatus]time.Duration {
 	m.l.RLock()
 	defer m.l.RUnlock()
 	if gs, ok := m.get(gid); ok {
 		return gs.GetStatusSettle()
 	}
 	return nil
+}
+
+// 获取当前存活线程的所有状态总结
+func (m *GoroutineSettleMap) GetAllGoroutineStatusDuration() map[GoroutineStatus]time.Duration {
+	m.l.RLock()
+	defer m.l.RUnlock()
+	dsMap := make(map[GoroutineStatus]time.Duration)
+	for gid := range m.m {
+		gs := m.m[gid]
+		gds := gs.GetStatusSettle()
+		for status := range gds {
+			dsMap[status] += gds[status]
+		}
+	}
+	return dsMap
 }
 
 // 获取最近时间状态总结
@@ -449,17 +496,14 @@ func (m *GoroutineSettleMap) NewGoroutineSettle(gid GoroutineUID, gs *GoroutineS
 }
 
 // 终结一个线程
-func (m *GoroutineSettleMap) DeleteGoroutineSettle(gid GoroutineUID) *LatencyMap {
+func (m *GoroutineSettleMap) DeleteGoroutineSettle(gid GoroutineUID) {
 	m.l.Lock()
 	defer m.l.Unlock()
 
-	var settle *LatencyMap
 	if gs, ok := m.get(gid); ok {
 		if m.GetCurrentStatus(gid) == GoroutineStatusActive {
 			gs.AutoSwitchGoRoutineStatus()
 		}
-		settle = m.GetStatusSettle(gid)
 		delete(m.m, gid)
 	}
-	return settle
 }
