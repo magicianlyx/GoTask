@@ -4,6 +4,7 @@ import "sync"
 
 type GoroutineUID int
 
+// ID 生成器
 type IGenerator interface {
 	Generate() GoroutineUID
 	Collect(gid GoroutineUID)

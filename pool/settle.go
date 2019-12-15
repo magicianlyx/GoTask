@@ -7,31 +7,38 @@ import (
 	"time"
 )
 
-// 单种状态总结（非线程安全）
+// 单种状态总结（线程安全）
 type Latency struct {
-	Status         GoroutineStatus // 状态
-	AmountDuration time.Duration   // 总时长
-	LastStart      time.Time       // 最后一次启动时刻
+	l      sync.RWMutex
+	status GoroutineStatus // 状态
+	amount time.Duration   // 总时长
+	last   time.Time       // 最后一次启动时刻
 }
 
 func NewLatency(status GoroutineStatus) *Latency {
-	return &Latency{Status: status}
+	return &Latency{
+		l:      sync.RWMutex{},
+		status: status,
+		amount: 0,
+		last:   time.Time{},
+	}
 }
 
 func (l *Latency) Clone() *Latency {
 	return &Latency{
-		Status:         l.Status,
-		AmountDuration: l.AmountDuration,
-		LastStart:      l.LastStart,
+		l:      sync.RWMutex{},
+		status: l.status,
+		amount: l.amount,
+		last:   l.last,
 	}
 }
 
 func (l *Latency) IsStart() bool {
-	return !l.LastStart.IsZero()
+	return !l.last.IsZero()
 }
 
 func (l *Latency) Start() {
-	l.LastStart = time.Now()
+	l.last = time.Now()
 }
 
 func (l *Latency) Stop() {
@@ -39,24 +46,25 @@ func (l *Latency) Stop() {
 		return
 	}
 	now := time.Now()
-	latency := now.Sub(l.LastStart)
-	l.AmountDuration += latency
-	l.LastStart = time.Time{}
+	latency := now.Sub(l.last)
+	l.amount += latency
+	l.last = time.Time{}
 }
 
 func (l *Latency) AmountDurationOfNow() *Latency {
-	return l.AmountDurationOTime(time.Now())
+	return l.AmountDurationOfTime(time.Now())
 }
 
-func (l *Latency) AmountDurationOTime(t time.Time) *Latency {
+func (l *Latency) AmountDurationOfTime(t time.Time) *Latency {
 	if !l.IsStart() {
 		return l.Clone()
 	}
-	latency := t.Sub(l.LastStart)
+	latency := t.Sub(l.last)
 	return &Latency{
-		Status:         l.Status,
-		AmountDuration: l.AmountDuration + latency,
-		LastStart:      l.LastStart,
+		l:      sync.RWMutex{},
+		status: l.status,
+		amount: l.amount + latency,
+		last:   l.last,
 	}
 }
 
@@ -96,10 +104,6 @@ func (g *LatencyMap) set(status GoroutineStatus, l *Latency) {
 	g.m.Store(status, l)
 }
 
-func (g *LatencyMap) delete(status GoroutineStatus) {
-	g.m.Delete(status)
-}
-
 func (g *LatencyMap) GetAll() map[GoroutineStatus]*Latency {
 	g.l.RLock()
 	defer g.l.RUnlock()
@@ -114,12 +118,14 @@ func (g *LatencyMap) getAll() map[GoroutineStatus]*Latency {
 		if k, ok := key.(GoroutineStatus); ok {
 			sk = k
 		} else {
+			printf("internal data error, type of `key` is not `GoroutineStatus`")
 			g.m.Delete(key)
 			return true
 		}
 		if v, ok := value.(*Latency); ok {
 			sv = v.AmountDurationOfNow()
 		} else {
+			printf("internal data error, type of `value` is not `Latency`")
 			g.m.Delete(key)
 			return true
 		}
@@ -139,16 +145,18 @@ func (g *LatencyMap) Clone() *LatencyMap {
 		if k, ok := key.(GoroutineStatus); ok {
 			sk = k
 		} else {
+			printf("internal data error, type of `key` is not `GoroutineStatus`")
 			g.m.Delete(key)
 			return true
 		}
 		if v, ok := value.(*Latency); ok {
 			sv = v.AmountDurationOfNow()
 		} else {
+			printf("internal data error, type of `value` is not `Latency`")
 			g.m.Delete(key)
 			return true
 		}
-		r.Set(sk, sv)
+		r.set(sk, sv)
 		return true
 	})
 	return r
@@ -172,20 +180,24 @@ func (g *LatencyMap) Stop(status GoroutineStatus) {
 	g.getOrCreate(status).Stop()
 }
 
-// 单线程状态总结（非线程安全）
+// 单线程状态总结（线程安全）
 type StatusSettle struct {
+	l        sync.RWMutex
 	status   GoroutineStatus
 	duration time.Duration
 }
 
 func NewStatusSettle(status GoroutineStatus, duration time.Duration) *StatusSettle {
 	return &StatusSettle{
+		l:        sync.RWMutex{},
 		status:   status,
 		duration: duration,
 	}
 }
 
 func (s *StatusSettle) AddDuration(duration time.Duration) {
+	s.l.Lock()
+	defer s.l.Unlock()
 	s.duration += duration
 }
 
@@ -241,10 +253,12 @@ func (m *StatusSettleMap) AddMultiStatusDuration(multiStatusDuration map[Gorouti
 // 单个线程信息总结（线程安全 但非强一致）
 // FIXME PS：目前没有保证同一时刻s，m，lr 信息一致；如果要求状态信息完全同步的需要在结构体加锁及时间变量统一
 // FIXME 数据状态需要强一致
+// FIXME 已处理
 type GoroutineSettle struct {
+	l          sync.RWMutex
 	s          atomic.Value  // 线程当前状态 GoroutineStatus
 	m          *LatencyMap   // 各个状态汇总记录 map[GoroutineStatus]*Latency
-	lr         *RecentRecord // 最近记录 FIXME
+	lr         *RecentRecord // 最近记录
 	createTime time.Time     // 线程创建时间
 }
 
@@ -252,6 +266,7 @@ func NewGoroutineSettle(d time.Duration) *GoroutineSettle {
 	s := atomic.Value{}
 	s.Store(GoroutineStatusNone)
 	return &GoroutineSettle{
+		l:          sync.RWMutex{},
 		s:          s,
 		m:          NewLatencyMap(),
 		lr:         NewRecentRecord(d),
@@ -269,51 +284,51 @@ func (g *GoroutineSettle) setStatus(s GoroutineStatus) {
 
 // 获取线程存活时间
 func (g *GoroutineSettle) GetSurvivalDuration() time.Duration {
+	g.l.RLock()
+	defer g.l.RUnlock()
 	return time.Now().Sub(g.createTime)
 }
 
 // 获取当前状态
 func (g *GoroutineSettle) GetCurrentStatus() GoroutineStatus {
+	g.l.RLock()
+	defer g.l.RUnlock()
 	return g.getStatus()
 }
 
-//// 切换线程状态
-//func (g *GoroutineSettle) SwitchGoRoutineStatus(status GoroutineStatus) {
-//	if !status.IsValid() {
-//		return
-//	}
-//	preStatus := g.getStatus()
-//	g.setStatus(status)
-//	if preStatus.IsValid() {
-//		g.m.Stop(preStatus)
-//	}
-//	g.lr.AddSwitchRecord(preStatus, status)
-//}
-
 // 切换线程状态
 func (g *GoroutineSettle) AutoSwitchGoRoutineStatus() GoroutineStatus {
+	g.l.Lock()
+	defer g.l.Unlock()
 	preStatus := g.getStatus()
 	status := SwitchStatus(preStatus)
 	g.setStatus(status)
 	if preStatus.IsValid() {
 		g.m.Stop(preStatus)
 	}
+	g.m.Start(status)
 	g.lr.AddSwitchRecord(preStatus, status)
 	return status
 }
 
 // 获取所有时间状态总结
 func (g *GoroutineSettle) GetStatusSettle() *LatencyMap {
+	g.l.RLock()
+	defer g.l.RUnlock()
 	return g.m.Clone()
 }
 
 // 获取最近时间状态总结
 func (g *GoroutineSettle) GetRecentStatusSettle() map[GoroutineStatus]time.Duration {
+	g.l.RLock()
+	defer g.l.RUnlock()
 	return g.lr.GetRecentSettle()
 }
 
 // 获取最近活跃占比
 func (g *GoroutineSettle) GetRecentActiveRatio() float64 {
+	g.l.RLock()
+	defer g.l.RUnlock()
 	m := g.lr.GetRecentSettle()
 	c := m[GoroutineStatusActive]
 	s := g.GetSurvivalDuration()

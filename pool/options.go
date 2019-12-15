@@ -30,10 +30,10 @@ func (o *Options) fillDefaultOptions() {
 	if o.AutoMonitorDuration == time.Duration(0) {
 		o.AutoMonitorDuration = oDefault.AutoMonitorDuration
 	}
-	if o.CloseLessThanF > 1.0 || o.CloseLessThanF < 0.0 {
+	if o.CloseLessThanF >= 1.0 || o.CloseLessThanF <= 0.0 {
 		o.CloseLessThanF = oDefault.CloseLessThanF
 	}
-	if o.NewGreaterThanF > 1.0 || o.NewGreaterThanF < 0.0 {
+	if o.NewGreaterThanF >= 1.0 || o.NewGreaterThanF <= 0.0 {
 		o.NewGreaterThanF = oDefault.NewGreaterThanF
 	}
 	if o.GoroutineLimit <= 0 {
