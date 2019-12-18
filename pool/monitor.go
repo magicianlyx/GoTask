@@ -6,21 +6,30 @@ import (
 )
 
 type DynamicPoolMonitor struct {
-	l sync.RWMutex        //互斥锁
+	l sync.RWMutex        // 互斥锁
 	k *Generator          // ID发生器
 	s *StatusSettleMap    // 状态总结（只统计已经消亡的线程）
+	S *StatusSettleMap    // FIXME DEBUG
 	g *GoroutineSettleMap // 线程总结 只存储当前存活线程
+	G *GoroutineSettleMap // FIXME DEBUG
 	c *Counter            // 计数器 用于加速获取当前存活线程数及记录线程存活峰值数
+	C *Counter            // FIXME DEBUG
 	o *Options            // 配置
 }
 
 func NewDynamicPoolMonitor(o *Options) *DynamicPoolMonitor {
+	s := NewStatusSettleMap()
+	g := NewGoroutineSettleMap()
+	c := NewCounter()
 	return &DynamicPoolMonitor{
 		l: sync.RWMutex{},
 		k: NewGenerator(),
-		s: NewStatusSettleMap(),
-		g: NewGoroutineSettleMap(),
-		c: NewCounter(),
+		s: s,
+		S: s,
+		g: g,
+		G: g,
+		c: c,
+		C: c,
 		o: o,
 	}
 }
@@ -66,11 +75,11 @@ func (m *DynamicPoolMonitor) destroy(gid GoroutineUID) {
 	if m.g.GetCurrentStatus(gid) == GoroutineStatusActive {
 		m.g.AutoSwitchGoRoutineStatus(gid)
 	}
-
+	
 	// 将线程的状态信息累加到监控器的状态信息上
 	settle := m.g.GetStatusSettle(gid)
 	m.s.AddMultiStatusDuration(settle)
-
+	
 	m.k.Collect(gid)
 	m.c.Dec()
 	m.g.DeleteGoroutineSettle(gid)

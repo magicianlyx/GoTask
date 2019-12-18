@@ -103,7 +103,7 @@ func NewRecentRecord(d time.Duration) *RecentRecord {
 
 // 获取最近的状态总结
 func (l *RecentRecord) GetRecentSettle() map[GoroutineStatus]time.Duration {
-	l.AdjustRecord()
+	l.adjustRecord()
 	lc := l.Clone() // 创建一个副本再去统计
 	m := lc.m
 	mLen := len(m)
@@ -121,7 +121,7 @@ func (l *RecentRecord) GetRecentSettle() map[GoroutineStatus]time.Duration {
 }
 
 // 调整 去除过期的切换记录
-func (l *RecentRecord) AdjustRecord() {
+func (l *RecentRecord) adjustRecord() {
 	// 计算有效时间最早时刻
 	now := time.Now()
 	limit := now.Add(-l.d)

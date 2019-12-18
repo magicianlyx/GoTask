@@ -3,7 +3,6 @@ package GoTaskv1
 import (
 	"errors"
 	"github.com/magicianlyx/GoTask/pool"
-	"github.com/magicianlyx/GoTask/profile"
 	"github.com/magicianlyx/GoTask/structure"
 	"github.com/magicianlyx/GoTask/task"
 	"sync"
@@ -33,17 +32,16 @@ type TimedTask struct {
 	singleValue          int64               // 保证同一时刻单刷新信号
 	shutdownExecutorSign chan struct{}       // 任务执行线程 停止信号通知通道
 	shutdownIssueSign    chan struct{}       // 任务发射线程 停止信号通知通道
-	routineCount         int
+	routineCount         int64
 	addCallback          *CbFuncMap
 	cancelCallback       *CbFuncMap
 	executeCallback      *CbFuncMap
 	banCallback          *CbFuncMap
 	unBanCallback        *CbFuncMap
-	monitor              *profile.Monitor
 	wg                   *sync.WaitGroup
 }
 
-func NewTimedTask(maxRoutineCount int) *TimedTask {
+func NewTimedTask(maxRoutineCount int64) *TimedTask {
 	tt := &TimedTask{
 		sync.RWMutex{},
 		task.NewTaskMap(),
@@ -59,7 +57,6 @@ func NewTimedTask(maxRoutineCount int) *TimedTask {
 		NewCbFuncMap(),
 		NewCbFuncMap(),
 		NewCbFuncMap(),
-		profile.NewMonitor(maxRoutineCount),
 		&sync.WaitGroup{},
 	}
 	//tt.goExecutor()
@@ -70,7 +67,7 @@ func NewTimedTask(maxRoutineCount int) *TimedTask {
 
 func (tt *TimedTask) Stop() {
 	tt.shutdownIssueSign <- struct{}{}
-	for i := 0; i < tt.routineCount; i++ {
+	for i := 0; i < int(tt.routineCount); i++ {
 		tt.shutdownExecutorSign <- struct{}{}
 	}
 	tt.wg.Wait()
@@ -135,12 +132,12 @@ func (tt *TimedTask) invokeCancelCallback(key string, err error) {
 	}()
 }
 
-func (tt *TimedTask) invokeExecuteCallback(info *task.TaskInfo, res map[string]interface{}, err error, rid int) {
+func (tt *TimedTask) invokeExecuteCallback(info *task.TaskInfo, res map[string]interface{}, err error, gid pool.GoroutineUID) {
 	go func() {
 		executeCallbacks := make([]executeCallback, 0)
 		tt.executeCallback.GetAll(&executeCallbacks)
 		for _, cb := range executeCallbacks {
-			cb(&task.ExecuteCbArgs{info, res, err, rid})
+			cb(&task.ExecuteCbArgs{info, res, err, gid})
 		}
 	}()
 }
@@ -280,7 +277,7 @@ func (tt *TimedTask) IsBan(key string) bool {
 // 后面会使用动态线程池去执行这部分操作
 // 就没有goExecutor函数 直接将函数使用put抛给动态线程池完成
 func (tt *TimedTask) goExecutor() {
-	for i := 0; i < tt.routineCount; i++ {
+	for i := 0; i < int(tt.routineCount); i++ {
 		go func(rid int) {
 			tt.wg.Add(1)
 			defer tt.wg.Done()
@@ -293,7 +290,6 @@ func (tt *TimedTask) goExecutor() {
 					return
 				}
 				if tt.tMap.Get(ti.Key) != nil {
-					tt.monitor.SetGoroutineRunning(rid, ti.Key)
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
@@ -304,8 +300,7 @@ func (tt *TimedTask) goExecutor() {
 					}
 
 					// 执行回调
-					tt.invokeExecuteCallback(ti, res, err, rid)
-					tt.monitor.SetGoroutineSleep(rid)
+					tt.invokeExecuteCallback(ti, res, err, pool.GoroutineUID( rid))
 
 				}
 			}
@@ -313,7 +308,7 @@ func (tt *TimedTask) goExecutor() {
 	}
 }
 
-func (tt *TimedTask) goExecutorV2(maxRoutineCount int) {
+func (tt *TimedTask) goExecutorV2(maxRoutineCount int64) {
 	options := &pool.Options{
 		GoroutineLimit: maxRoutineCount,
 	}
@@ -333,9 +328,8 @@ func (tt *TimedTask) goExecutorV2(maxRoutineCount int) {
 				return
 			}
 			// 构成一个任务
-			task := func(gid int) {
+			task := func(gid pool.GoroutineUID) {
 				if tt.tMap.Get(ti.Key) != nil {
-					tt.monitor.SetGoroutineRunning(gid, ti.Key)
 
 					// 执行任务
 					res, err := ti.Task()
@@ -348,7 +342,6 @@ func (tt *TimedTask) goExecutorV2(maxRoutineCount int) {
 
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, gid)
-					tt.monitor.SetGoroutineSleep(gid)
 				}
 			}
 
@@ -413,14 +406,4 @@ func (tt *TimedTask) reSelectAfterUpdate() {
 // 获取定时任务列表信息
 func (tt *TimedTask) GetTimedTaskInfo() map[string]*task.TaskInfo {
 	return tt.tMap.GetAll()
-}
-
-// 获取指定id的线程信息
-func (tt *TimedTask) GetGoroutineStatus(id int) *profile.GoroutineInfo {
-	return tt.monitor.GetGoroutineStatus(id)
-}
-
-// 获取所有线程信息
-func (tt *TimedTask) GetAllGoroutineStatus() *profile.Monitor {
-	return tt.monitor.GetAllGoroutineStatus()
 }

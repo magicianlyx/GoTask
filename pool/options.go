@@ -20,7 +20,7 @@ func NewDefaultOptions() *Options {
 		CloseLessThanF:      0.5,
 		NewGreaterThanF:     0.9,
 		GoroutineLimit:      int64(runtime.NumCPU() * 3),
-		TaskChannelSize:     int64(runtime.NumCPU() * 1000),
+		TaskChannelSize:     int64(runtime.NumCPU() * 10),
 	}
 }
 

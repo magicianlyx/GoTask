@@ -13,15 +13,18 @@ type GoroutinePool struct {
 	e chan struct{} // 停止所有线程信号
 	l sync.RWMutex
 	m *DynamicPoolMonitor
+	M *DynamicPoolMonitor
 	o *Options
 }
 
 func NewGoroutinePool(options *Options) *GoroutinePool {
 	options = options.Clone()
 	options.fillDefaultOptions()
+	m := NewDynamicPoolMonitor(options)
 	return &GoroutinePool{
 		c: make(chan TaskObj, options.TaskChannelSize),
-		m: NewDynamicPoolMonitor(options),
+		m: m,
+		M: m,
 		o: options,
 	}
 }
@@ -37,9 +40,8 @@ func (g *GoroutinePool) Stop() {
 
 // 根据压力尝试创建线程
 func (g *GoroutinePool) CheckPressure() {
-	g.l.Lock()
-	defer g.l.Unlock()
 	gCnt := g.m.GetGoroutineCount()
+	
 	if gCnt == 0 {
 		g.createGoroutine()
 	} else if (float64(len(g.c))/float64(g.o.TaskChannelSize)) > g.o.NewGreaterThanF && gCnt < g.o.GoroutineLimit {
@@ -48,10 +50,8 @@ func (g *GoroutinePool) CheckPressure() {
 }
 
 // 根据压力尝试关闭线程
-func (g *GoroutinePool) TryDestroyGoroutine(gid GoroutineUID) {
-	g.l.Lock()
-	defer g.l.Unlock()
-	g.m.TryDestroyGoroutine(gid)
+func (g *GoroutinePool) tryDestroyGoroutine(gid GoroutineUID) bool {
+	return g.m.TryDestroyGoroutine(gid)
 }
 
 // 新建一个线程
@@ -70,19 +70,22 @@ func (g *GoroutinePool) createGoroutine() (GoroutineUID, chan<- struct{}) {
 			case <-t.C:
 				// 压力检测 尝试自杀
 				t.Stop()
-				t = time.NewTicker(g.o.AutoMonitorDuration)
-				g.TryDestroyGoroutine(gid)
+				if g.tryDestroyGoroutine(gid) {
+					break
+				} else {
+					t = time.NewTicker(g.o.AutoMonitorDuration)
+				}
 			case <-c:
 				// 单线程主动关闭
 				g.m.Destroy(gid)
-				return
+				break
 			case <-g.e:
 				// 主线程主动关闭
 				g.m.Destroy(gid)
-				return
+				break
 			}
+			t.Stop()
 		}
 	}(gid)
-	t.Stop()
 	return gid, c
 }

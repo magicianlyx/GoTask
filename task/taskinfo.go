@@ -1,6 +1,7 @@
 package task
 
 import (
+	"github.com/magicianlyx/GoTask/pool"
 	"time"
 )
 
@@ -101,9 +102,9 @@ func NewTaskInfo(key string, task TaskObj, sche ISchedule) *TaskInfo {
 
 type ExecuteCbArgs struct {
 	*TaskInfo
-	Res       map[string]interface{}
-	Error     error
-	RoutineId int
+	Res   map[string]interface{}
+	Error error
+	Gid   pool.GoroutineUID
 }
 
 type AddCbArgs struct {
