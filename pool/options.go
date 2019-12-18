@@ -16,7 +16,7 @@ type Options struct {
 // 构建默认配置
 func NewDefaultOptions() *Options {
 	return &Options{
-		AutoMonitorDuration: time.Minute * 5,
+		AutoMonitorDuration: time.Second * 5,
 		CloseLessThanF:      0.5,
 		NewGreaterThanF:     0.9,
 		GoroutineLimit:      int64(runtime.NumCPU() * 3),

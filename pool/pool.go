@@ -48,8 +48,8 @@ func (g *GoroutinePool) checkPressure() {
 func (g *GoroutinePool) createGoroutine(gid GoroutineUID) chan<- struct{} {
 	c := make(chan struct{})
 	go func(gid GoroutineUID) {
-		t := time.NewTicker(g.o.AutoMonitorDuration)
 		for {
+			t := time.NewTicker(g.o.AutoMonitorDuration)
 			select {
 			case task := <-g.c:
 				// 执行任务task
