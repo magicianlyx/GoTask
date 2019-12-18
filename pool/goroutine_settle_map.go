@@ -34,19 +34,22 @@ func (m *GoroutineSettleMap) GetSurvivalDuration(gid GoroutineUID) time.Duration
 }
 
 // 获取线程当前状态
-func (m *GoroutineSettleMap) GetCurrentStatus(gid GoroutineUID) GoroutineStatus {
-	m.l.RLock()
-	defer m.l.RUnlock()
+func (m *GoroutineSettleMap) getCurrentStatus(gid GoroutineUID) GoroutineStatus {
 	if gs, ok := m.get(gid); ok {
 		return gs.GetStatus()
 	}
 	return GoroutineStatusNone
 }
 
+func (m *GoroutineSettleMap) GetCurrentStatus(gid GoroutineUID) GoroutineStatus {
+	return m.getCurrentStatus(gid)
+}
+
 // 切换线程状态
 func (m *GoroutineSettleMap) AutoSwitchGoRoutineStatus(gid GoroutineUID) GoroutineStatus {
 	m.l.Lock()
 	defer m.l.Unlock()
+	
 	if gs, ok := m.get(gid); ok {
 		nstatus := gs.AutoSwitchGoRoutineStatus()
 		return nstatus
@@ -138,7 +141,7 @@ func (m *GoroutineSettleMap) DeleteGoroutineSettle(gid GoroutineUID) {
 	defer m.l.Unlock()
 	
 	if gs, ok := m.get(gid); ok {
-		if m.GetCurrentStatus(gid) == GoroutineStatusActive {
+		if m.getCurrentStatus(gid) == GoroutineStatusActive {
 			gs.AutoSwitchGoRoutineStatus()
 		}
 		delete(m.m, gid)

@@ -1,26 +1,28 @@
-package pool
+package main
 
 import (
 	"fmt"
-	"github.com/magicianlyx/GoTask/utils"
+	"github.com/magicianlyx/GoTask/pool"
 	"math/rand"
-	"testing"
+	"sync/atomic"
 	"time"
 )
 
-func TestNewGoroutinePool(t *testing.T) {
-	options := &Options{}
-	pool := NewGoroutinePool(options)
-	fmt.Printf("%v\r\n", utils.ToJson(pool.o))
+func main() {
+	var amount int64 = 0
+	options := &pool.Options{}
+	p := pool.NewGoroutinePool(options)
 	
 	for i := 0; i < 10; i++ {
 		go func(i int) {
 			for j := 0; j < 10000000; j++ {
-				pool.Put(func(gid GoroutineUID) {
+				p.Put(func(gid pool.GoroutineUID) {
 					if gid >= 18 {
 						fmt.Printf("gid: %v\r\n", gid)
 					}
-					time.Sleep(time.Duration(rand.Intn(10)) * time.Millisecond)
+					rdms := time.Duration(rand.Intn(10)) * time.Millisecond
+					time.Sleep(rdms)
+					atomic.AddInt64(&amount, int64(rdms))
 				})
 				if j%1000 == 0 {
 					time.Sleep(10 * time.Second)
@@ -37,20 +39,13 @@ func TestNewGoroutinePool(t *testing.T) {
 			time.Sleep(time.Second)
 			i++
 			// fmt.Printf("time.Sleep(time.Second)\r\n")
-			active := pool.GetCurrentActiveCount()
+			active := p.GetCurrentActiveCount()
 			// fmt.Printf("active := pool.GetCurrentActiveCount()\r\n")
-			count := pool.GetGoroutineCount()
+			count := p.GetGoroutineCount()
 			// fmt.Printf("count := pool.GetGoroutineCount()\r\n")
-			peak := pool.GetGoroutinePeak()
+			peak := p.GetGoroutinePeak()
 			// fmt.Printf("peak := pool.GetGoroutinePeak()\r\n")
-			settle := pool.GetStatusSettle()
-			fmt.Printf("active: %v  count: %v  peak: %v  channel: %v  \r\n",
-				active,
-				count,
-				peak,
-				len(pool.c),
-			)
-			
+			settle := p.GetStatusSettle()
 			
 			settleMap := map[string]string{}
 			for i := range settle {
@@ -58,13 +53,33 @@ func TestNewGoroutinePool(t *testing.T) {
 				duration := fmt.Sprintf("%v", settle[i])
 				settleMap[status] = duration
 			}
-			fmt.Printf("%s\r\n",
-				utils.ToJson(settleMap),
+			
+			fmt.Printf("active: %v  count: %v  peak: %v  channel: %v  active_duration: %v   sleep_duration: %v   amount: %v\r\n",
+				active,
+				count,
+				peak,
+				p.GetWorkCount(),
+				settleMap["active"],
+				settleMap["sleep"],
+				time.Duration(atomic.LoadInt64(&amount)),
 			)
 			
+			// fmt.Printf("%s\r\n",
+			// 	utils.ToJson(settleMap),
+			// )
+			
+			_ = active
+			_ = count
+			_ = peak
 			_ = settle
 			
 		}
+	}()
+	
+	go func() {
+		time.Sleep(time.Minute)
+		p.Stop()
+		fmt.Printf("关闭组件\r\n")
 	}()
 	
 	// go func() {

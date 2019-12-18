@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"Data/utils"
+	"github.com/magicianlyx/GoTask/utils"
 	"fmt"
 	"testing"
 	"time"

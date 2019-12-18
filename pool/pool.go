@@ -2,6 +2,7 @@ package pool
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -14,6 +15,7 @@ type GoroutinePool struct {
 	l sync.RWMutex
 	m *DynamicPoolMonitor
 	o *Options
+	s int64 // 0未关闭 1已关闭
 }
 
 func NewGoroutinePool(options *Options) *GoroutinePool {
@@ -22,18 +24,40 @@ func NewGoroutinePool(options *Options) *GoroutinePool {
 	m := NewDynamicPoolMonitor(options)
 	return &GoroutinePool{
 		c: make(chan TaskObj, options.TaskChannelSize),
+		e: make(chan struct{}),
 		m: m,
 		o: options,
+		s: 0,
 	}
 }
 
+func (g *GoroutinePool) close() {
+	atomic.StoreInt64(&g.s, 1)
+}
+
+func (g *GoroutinePool) isClose() bool {
+	return atomic.LoadInt64(&g.s) == 1
+}
+
 func (g *GoroutinePool) Put(obj TaskObj) {
-	g.c <- obj
-	g.checkPressure()
+	if !g.isClose() {
+		g.c <- obj
+		g.checkPressure()
+	}
 }
 
 func (g *GoroutinePool) Stop() {
+	g.close()
+	close(g.c)
 	close(g.e)
+}
+
+func (g *GoroutinePool) GetWorkCount() int64 {
+	if g.isClose() {
+		return 0
+	}
+	return int64(len(g.c))
+	
 }
 
 // 根据压力尝试创建线程
@@ -48,32 +72,39 @@ func (g *GoroutinePool) checkPressure() {
 func (g *GoroutinePool) createGoroutine(gid GoroutineUID) chan<- struct{} {
 	c := make(chan struct{})
 	go func(gid GoroutineUID) {
+		t := time.NewTicker(g.o.AutoMonitorDuration)
 		for {
-			t := time.NewTicker(g.o.AutoMonitorDuration)
 			select {
 			case task := <-g.c:
-				// 执行任务task
-				g.m.SwitchGoRoutineStatus(gid)
-				task(gid)
-				g.m.SwitchGoRoutineStatus(gid)
+				if task != nil {
+					// 执行任务task
+					g.m.SwitchGoRoutineStatus(gid)
+					task(gid)
+					g.m.SwitchGoRoutineStatus(gid)
+				} else if g.isClose(){
+					t.Stop()
+					return
+				}
 			case <-t.C:
 				// 根据压力尝试关闭线程
 				t.Stop()
 				if g.m.TryDestroy(gid) {
-					break
+					t.Stop()
+					return
 				} else {
 					t = time.NewTicker(g.o.AutoMonitorDuration)
 				}
 			case <-c:
 				// 单线程主动关闭
 				g.m.Destroy(gid)
-				break
+				t.Stop()
+				return
 			case <-g.e:
 				// 主线程主动关闭
 				g.m.Destroy(gid)
-				break
+				t.Stop()
+				return
 			}
-			t.Stop()
 		}
 	}(gid)
 	return c
