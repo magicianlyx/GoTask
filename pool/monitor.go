@@ -70,6 +70,24 @@ func (m *DynamicPoolMonitor) Construct() GoroutineUID {
 	return m.construct()
 }
 
+// 尝试创建一个线程
+func (m *DynamicPoolMonitor) TryConstruct(want bool) (GoroutineUID, bool) {
+	m.l.Lock()
+	defer m.l.Unlock()
+	gc := m.c.Get()
+	if gc == 0 {
+		// 无存活线程 必须创建
+		gid := m.construct()
+		return gid, true
+	} else if want && gc < m.o.GoroutineLimit {
+		// 存活线程数没有溢出 可以创建
+		gid := m.construct()
+		return gid, true
+	}
+	return 0, false
+	
+}
+
 // 销毁一个线程
 func (m *DynamicPoolMonitor) destroy(gid GoroutineUID) {
 	if m.g.GetCurrentStatus(gid) == GoroutineStatusActive {
@@ -93,7 +111,7 @@ func (m *DynamicPoolMonitor) Destroy(gid GoroutineUID) {
 }
 
 // 尝试关闭一个线程 如果线程最近活跃时长较短 则关闭线程
-func (m *DynamicPoolMonitor) TryDestroyGoroutine(gid GoroutineUID) bool {
+func (m *DynamicPoolMonitor) TryDestroy(gid GoroutineUID) bool {
 	m.l.Lock()
 	defer m.l.Unlock()
 	if m.g.GetRecentActiveRatio(gid) < m.o.CloseLessThanF {

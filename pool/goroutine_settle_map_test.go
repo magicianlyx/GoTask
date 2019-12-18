@@ -223,5 +223,4 @@ func TestNewGoroutineSettle(t *testing.T) {
 	fmt.Printf("%s\r\n",
 		utils.ToJson(settleMap),
 	)
-	
 }
