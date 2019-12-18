@@ -13,7 +13,6 @@ type GoroutinePool struct {
 	e chan struct{} // 停止所有线程信号
 	l sync.RWMutex
 	m *DynamicPoolMonitor
-	M *DynamicPoolMonitor
 	o *Options
 }
 
@@ -24,14 +23,13 @@ func NewGoroutinePool(options *Options) *GoroutinePool {
 	return &GoroutinePool{
 		c: make(chan TaskObj, options.TaskChannelSize),
 		m: m,
-		M: m,
 		o: options,
 	}
 }
 
 func (g *GoroutinePool) Put(obj TaskObj) {
 	g.c <- obj
-	g.CheckPressure()
+	g.checkPressure()
 }
 
 func (g *GoroutinePool) Stop() {
@@ -39,27 +37,18 @@ func (g *GoroutinePool) Stop() {
 }
 
 // 根据压力尝试创建线程
-func (g *GoroutinePool) CheckPressure() {
-	gCnt := g.m.GetGoroutineCount()
-	
-	if gCnt == 0 {
-		g.createGoroutine()
-	} else if (float64(len(g.c))/float64(g.o.TaskChannelSize)) > g.o.NewGreaterThanF && gCnt < g.o.GoroutineLimit {
-		g.createGoroutine()
+func (g *GoroutinePool) checkPressure() {
+	want := (float64(len(g.c)) / float64(g.o.TaskChannelSize)) > g.o.NewGreaterThanF
+	if gid, ok := g.m.TryConstruct(want); ok {
+		g.createGoroutine(gid)
 	}
 }
 
-// 根据压力尝试关闭线程
-func (g *GoroutinePool) tryDestroyGoroutine(gid GoroutineUID) bool {
-	return g.m.TryDestroyGoroutine(gid)
-}
-
 // 新建一个线程
-func (g *GoroutinePool) createGoroutine() (GoroutineUID, chan<- struct{}) {
-	gid := g.m.Construct()
+func (g *GoroutinePool) createGoroutine(gid GoroutineUID) chan<- struct{} {
 	c := make(chan struct{})
-	t := time.NewTicker(g.o.AutoMonitorDuration)
 	go func(gid GoroutineUID) {
+		t := time.NewTicker(g.o.AutoMonitorDuration)
 		for {
 			select {
 			case task := <-g.c:
@@ -68,9 +57,9 @@ func (g *GoroutinePool) createGoroutine() (GoroutineUID, chan<- struct{}) {
 				task(gid)
 				g.m.SwitchGoRoutineStatus(gid)
 			case <-t.C:
-				// 压力检测 尝试自杀
+				// 根据压力尝试关闭线程
 				t.Stop()
-				if g.tryDestroyGoroutine(gid) {
+				if g.m.TryDestroy(gid) {
 					break
 				} else {
 					t = time.NewTicker(g.o.AutoMonitorDuration)
@@ -87,5 +76,21 @@ func (g *GoroutinePool) createGoroutine() (GoroutineUID, chan<- struct{}) {
 			t.Stop()
 		}
 	}(gid)
-	return gid, c
+	return c
+}
+
+func (g *GoroutinePool) GetStatusSettle() map[GoroutineStatus]time.Duration {
+	return g.m.GetStatusSettle()
+}
+
+func (g *GoroutinePool) GetCurrentActiveCount() int64 {
+	return g.m.GetCurrentActiveCount()
+}
+
+func (g *GoroutinePool) GetGoroutineCount() int64 {
+	return g.m.GetGoroutineCount()
+}
+
+func (g *GoroutinePool) GetGoroutinePeak() int64 {
+	return g.m.GetGoroutinePeak()
 }

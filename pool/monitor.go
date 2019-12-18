@@ -9,11 +9,8 @@ type DynamicPoolMonitor struct {
 	l sync.RWMutex        // 互斥锁
 	k *Generator          // ID发生器
 	s *StatusSettleMap    // 状态总结（只统计已经消亡的线程）
-	S *StatusSettleMap    // FIXME DEBUG
 	g *GoroutineSettleMap // 线程总结 只存储当前存活线程
-	G *GoroutineSettleMap // FIXME DEBUG
 	c *Counter            // 计数器 用于加速获取当前存活线程数及记录线程存活峰值数
-	C *Counter            // FIXME DEBUG
 	o *Options            // 配置
 }
 
@@ -25,11 +22,8 @@ func NewDynamicPoolMonitor(o *Options) *DynamicPoolMonitor {
 		l: sync.RWMutex{},
 		k: NewGenerator(),
 		s: s,
-		S: s,
 		g: g,
-		G: g,
 		c: c,
-		C: c,
 		o: o,
 	}
 }
@@ -46,6 +40,13 @@ func (m *DynamicPoolMonitor) GetGoroutineCount() int64 {
 	m.l.RLock()
 	defer m.l.RUnlock()
 	return m.c.Get()
+}
+
+// 获取存活线程数最高峰值
+func (m *DynamicPoolMonitor) GetGoroutinePeak() int64 {
+	m.l.RLock()
+	defer m.l.RUnlock()
+	return m.c.GetMax()
 }
 
 // 获取当前活跃线程数
