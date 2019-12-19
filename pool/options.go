@@ -9,18 +9,18 @@ type Options struct {
 	AutoMonitorDuration time.Duration // 定时check时长
 	CloseLessThanF      float64       // 定时check活跃线程比例 小于50%时 会关闭当前线程
 	NewGreaterThanF     float64       // 活跃线程比例大于90%时 新任务会创建新线程去跑
-	GoroutineLimit      int         // 线程上限数
-	TaskChannelSize     int         // 任务channel尺寸
+	GoroutineLimit      int           // 线程上限数
+	TaskChannelSize     int           // 任务channel尺寸
 }
 
 // 构建默认配置
 func NewDefaultOptions() *Options {
 	return &Options{
-		AutoMonitorDuration: time.Second * 5,
-		CloseLessThanF:      0.5,
-		NewGreaterThanF:     0.9,
+		AutoMonitorDuration: time.Second * 5 * 60,
+		CloseLessThanF:      0.3,
+		NewGreaterThanF:     0.001,
 		GoroutineLimit:      runtime.NumCPU() * 3,
-		TaskChannelSize:     runtime.NumCPU() * 10,
+		TaskChannelSize:     runtime.NumCPU() * 100,
 	}
 }
 
