@@ -36,21 +36,23 @@ func (m *DynamicPoolMonitor) SwitchGoRoutineStatus(gid GoroutineUID) {
 }
 
 // 获取当前存活线程数
-func (m *DynamicPoolMonitor) GetGoroutineCount() int64 {
+func (m *DynamicPoolMonitor) GetGoroutineCount() int {
 	m.l.RLock()
 	defer m.l.RUnlock()
-	return m.c.Get()
+	// FIXME
+	//  return m.c.Get()
+	return len(m.g.m)
 }
 
 // 获取存活线程数最高峰值
-func (m *DynamicPoolMonitor) GetGoroutinePeak() int64 {
+func (m *DynamicPoolMonitor) GetGoroutinePeak() int {
 	m.l.RLock()
 	defer m.l.RUnlock()
-	return m.c.GetMax()
+	return int(m.c.GetMax())
 }
 
 // 获取当前活跃线程数
-func (m *DynamicPoolMonitor) GetCurrentActiveCount() int64 {
+func (m *DynamicPoolMonitor) GetCurrentActiveCount() int {
 	m.l.RLock()
 	defer m.l.RUnlock()
 	return m.g.GetActiveGoroutineCount()
@@ -80,7 +82,7 @@ func (m *DynamicPoolMonitor) TryConstruct(want bool) (GoroutineUID, bool) {
 		// 无存活线程 必须创建
 		gid := m.construct()
 		return gid, true
-	} else if want && gc < m.o.GoroutineLimit {
+	} else if want && gc < int64(m.o.GoroutineLimit) {
 		// 存活线程数没有溢出 可以创建
 		gid := m.construct()
 		return gid, true

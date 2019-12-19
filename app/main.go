@@ -4,12 +4,11 @@ import (
 	"fmt"
 	"github.com/magicianlyx/GoTask/pool"
 	"math/rand"
-	"sync/atomic"
 	"time"
 )
 
 func main() {
-	var amount int64 = 0
+	
 	options := &pool.Options{}
 	p := pool.NewGoroutinePool(options)
 	
@@ -22,7 +21,6 @@ func main() {
 					}
 					rdms := time.Duration(rand.Intn(10)) * time.Millisecond
 					time.Sleep(rdms)
-					atomic.AddInt64(&amount, int64(rdms))
 				})
 				if j%1000 == 0 {
 					time.Sleep(10 * time.Second)
@@ -54,14 +52,13 @@ func main() {
 				settleMap[status] = duration
 			}
 			
-			fmt.Printf("active: %v  count: %v  peak: %v  channel: %v  active_duration: %v   sleep_duration: %v   amount: %v\r\n",
+			fmt.Printf("active: %v  count: %v  peak: %v  channel: %v  active_duration: %v   sleep_duration: %v \r\n",
 				active,
 				count,
 				peak,
 				p.GetWorkCount(),
 				settleMap["active"],
 				settleMap["sleep"],
-				time.Duration(atomic.LoadInt64(&amount)),
 			)
 			
 			// fmt.Printf("%s\r\n",
@@ -77,7 +74,9 @@ func main() {
 	}()
 	
 	go func() {
-		time.Sleep(time.Minute)
+		time.Sleep(time.Second*20)
+		p.Stop()
+		p.Stop()
 		p.Stop()
 		fmt.Printf("关闭组件\r\n")
 	}()

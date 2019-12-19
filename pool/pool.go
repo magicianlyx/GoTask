@@ -31,14 +31,17 @@ func NewGoroutinePool(options *Options) *GoroutinePool {
 	}
 }
 
+// 设置关闭组件标识
 func (g *GoroutinePool) close() {
 	atomic.StoreInt64(&g.s, 1)
 }
 
+// 组件是否已关闭
 func (g *GoroutinePool) isClose() bool {
 	return atomic.LoadInt64(&g.s) == 1
 }
 
+// 向线程池推一个任务
 func (g *GoroutinePool) Put(obj TaskObj) {
 	if !g.isClose() {
 		g.c <- obj
@@ -46,18 +49,13 @@ func (g *GoroutinePool) Put(obj TaskObj) {
 	}
 }
 
+// 关闭组件
 func (g *GoroutinePool) Stop() {
-	g.close()
-	close(g.c)
-	close(g.e)
-}
-
-func (g *GoroutinePool) GetWorkCount() int64 {
-	if g.isClose() {
-		return 0
+	if !g.isClose() {
+		g.close()
+		close(g.c)
+		close(g.e)
 	}
-	return int64(len(g.c))
-	
 }
 
 // 根据压力尝试创建线程
@@ -81,9 +79,9 @@ func (g *GoroutinePool) createGoroutine(gid GoroutineUID) chan<- struct{} {
 					g.m.SwitchGoRoutineStatus(gid)
 					task(gid)
 					g.m.SwitchGoRoutineStatus(gid)
-				} else if g.isClose(){
-					t.Stop()
-					return
+				} else if g.isClose() {
+					// 主线程主动关闭
+					break
 				}
 			case <-t.C:
 				// 根据压力尝试关闭线程
@@ -110,18 +108,30 @@ func (g *GoroutinePool) createGoroutine(gid GoroutineUID) chan<- struct{} {
 	return c
 }
 
+// 获取状态总结
 func (g *GoroutinePool) GetStatusSettle() map[GoroutineStatus]time.Duration {
 	return g.m.GetStatusSettle()
 }
 
-func (g *GoroutinePool) GetCurrentActiveCount() int64 {
+// 获取当前活跃线程数
+func (g *GoroutinePool) GetCurrentActiveCount() int {
 	return g.m.GetCurrentActiveCount()
 }
 
-func (g *GoroutinePool) GetGoroutineCount() int64 {
+// 获取当前存活线程数
+func (g *GoroutinePool) GetGoroutineCount() int {
 	return g.m.GetGoroutineCount()
 }
 
-func (g *GoroutinePool) GetGoroutinePeak() int64 {
+// 获取线程池存活线程峰值
+func (g *GoroutinePool) GetGoroutinePeak() int {
 	return g.m.GetGoroutinePeak()
+}
+
+// 获取等待线程执行的任务数
+func (g *GoroutinePool) GetWorkCount() int {
+	if g.isClose() {
+		return 0
+	}
+	return len(g.c)
 }

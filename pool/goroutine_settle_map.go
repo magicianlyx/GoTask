@@ -103,10 +103,10 @@ func (m *GoroutineSettleMap) GetRecentActiveRatio(gid GoroutineUID) float64 {
 }
 
 // 获取当前处于活跃状态的线程数
-func (m *GoroutineSettleMap) GetActiveGoroutineCount() int64 {
+func (m *GoroutineSettleMap) GetActiveGoroutineCount() int {
 	m.l.RLock()
 	defer m.l.RUnlock()
-	var cnt int64 = 0
+	var cnt  = 0
 	
 	for gid := range m.m {
 		if m.m[gid].GetStatus() == GoroutineStatusActive {
