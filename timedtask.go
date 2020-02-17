@@ -95,15 +95,19 @@ func (tt *TimedTask) DelCancelCallback(cb func(*task.CancelCbArgs)) {
 func (tt *TimedTask) AddExecuteCallback(cb func(*task.ExecuteCbArgs)) {
 	tt.executeCallback.Add(cb)
 }
+
 func (tt *TimedTask) DelExecuteCallback(cb func(*task.ExecuteCbArgs)) {
 	tt.executeCallback.Del(cb)
 }
+
 func (tt *TimedTask) AddBanCallback(cb func(*task.BanCbArgs)) {
 	tt.banCallback.Add(cb)
 }
+
 func (tt *TimedTask) DelBanCallback(cb func(*task.BanCbArgs)) {
 	tt.banCallback.Del(cb)
 }
+
 func (tt *TimedTask) AddUnBanCallback(cb func(*task.UnBanCbArgs)) {
 	tt.unBanCallback.Add(cb)
 }
@@ -185,6 +189,28 @@ func (tt *TimedTask) addWithCb(key string, obj task.TaskObj, sche task.ISchedule
 
 func (tt *TimedTask) Add(key string, obj task.TaskObj, sche task.ISchedule) {
 	tt.addWithCb(key, obj, sche, true)
+}
+
+func (tt *TimedTask) set(key string, obj task.TaskObj, sche task.ISchedule) error {
+	if tt.isBan(key) {
+		return ErrTaskIsBan
+	}
+	tt.tMap.AddOrSet(key, task.NewTaskInfo(key, obj, sche))
+	tt.reSelectAfterUpdate()
+	return nil
+}
+
+func (tt *TimedTask) setWithCb(key string, obj task.TaskObj, sche task.ISchedule, cb bool) {
+	tt.l.Lock()
+	err := tt.set(key, obj, sche)
+	tt.l.Unlock()
+	if cb {
+		tt.invokeAddCallback(task.NewTaskInfo(key, obj, sche), err)
+	}
+}
+
+func (tt *TimedTask) Set(key string, obj task.TaskObj, sche task.ISchedule) {
+	tt.setWithCb(key, obj, sche, true)
 }
 
 func (tt *TimedTask) cancel(key string) error {
