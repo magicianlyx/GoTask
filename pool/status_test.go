@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"gitee.com/magicianlyx/GoTask/utils"
+	"GoTask/utils"
 	"fmt"
 	"testing"
 	"time"

@@ -1,7 +1,7 @@
 package task
 
 import (
-	"gitee.com/magicianlyx/GoTask/pool"
+	"GoTask/pool"
 	"time"
 )
 

@@ -1,4 +1,4 @@
-module gitee.com/magicianlyx/GoTask
+module GoTask
 
 go 1.14
 
