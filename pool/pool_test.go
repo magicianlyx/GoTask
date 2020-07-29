@@ -2,7 +2,7 @@ package pool
 
 import (
 	"fmt"
-	"github.com/magicianlyx/GoTask/utils"
+	"gitee.com/magicianlyx/GoTask/utils"
 	"math/rand"
 	"testing"
 	"time"
