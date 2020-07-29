@@ -1,4 +1,4 @@
-module GoTask
+module gitee.com/magicianlyx/GoTask/pool
 
 go 1.14
 

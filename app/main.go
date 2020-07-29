@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"GoTask/pool"
+	"gitee.com/magicianlyx/GoTask/pool"
+	"gitee.com/magicianlyx/GoTask/pool/pool"
 	"math/rand"
 	"time"
 )

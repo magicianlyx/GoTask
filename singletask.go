@@ -1,7 +1,7 @@
 package GoTaskv1
 
 import (
-	task2 "GoTask/task"
+	task2 "gitee.com/magicianlyx/GoTask/task"
 	"time"
 )
 
