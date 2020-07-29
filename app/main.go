@@ -3,20 +3,19 @@ package main
 import (
 	"fmt"
 	"gitee.com/magicianlyx/GoTask/pool"
-	"gitee.com/magicianlyx/GoTask/pool/pool"
 	"math/rand"
 	"time"
 )
 
 func main() {
 	
-	options := &pool.Options{}
-	p := pool.NewGoroutinePool(options)
+	options := &Options{}
+	p := NewGoroutinePool(options)
 	
 	for i := 0; i < 10; i++ {
 		go func(i int) {
 			for j := 0; j < 10000000; j++ {
-				p.Put(func(gid pool.GoroutineUID) {
+				p.Put(func(gid GoroutineUID) {
 					if gid >= 18 {
 						fmt.Printf("gid: %v\r\n", gid)
 					}
