@@ -2,7 +2,7 @@ package pool
 
 import (
 	"fmt"
-	"GoTask/utils"
+	"gitee.com/magicianlyx/GoTask/utils"
 	"testing"
 )
 
