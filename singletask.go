@@ -1,7 +1,7 @@
-package GoTaskv1
+package GoTask
 
 import (
-	task2 ""GoTask/task"
+	"GoTask/task"
 	"time"
 )
 
@@ -14,8 +14,8 @@ func NewMultiTask(routineCount int) *MultiTask {
 	return &MultiTask{NewTimedTask(routineCount)}
 }
 
-func (mt *MultiTask) Add(key string, task task2.TaskObj, spec int, count int) {
-	mt.TimedTask.Add(key, task, task2.NewSpecTimeSchedule(time.Duration(spec)*time.Second, count))
+func (mt *MultiTask) Add(key string, t task.TaskObj, spec int, count int) {
+	mt.TimedTask.Add(key, t, task.NewSpecTimeSchedule(time.Duration(spec)*time.Second, count))
 }
 
 // 指定只执行一次定时任务
@@ -27,6 +27,6 @@ func NewSingleTask(routineCount int) *SingleTask {
 	return &SingleTask{NewMultiTask(routineCount)}
 }
 
-func (st *SingleTask) Add(key string, task task2.TaskObj, spec int) {
+func (st *SingleTask) Add(key string, task task.TaskObj, spec int) {
 	st.MultiTask.Add(key, task, spec, 1)
 }

@@ -1,4 +1,4 @@
-package GoTaskv1
+package GoTask
 
 import (
 	"reflect"

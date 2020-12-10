@@ -1,10 +1,10 @@
-package GoTaskv1
+package GoTask
 
 import (
+	"GoTask/pool"
+	"GoTask/structure"
+	"GoTask/task"
 	"errors"
-	""GoTask/pool"
-	""GoTask/structure"
-	""GoTask/task"
 	"sync"
 	"sync/atomic"
 	"time"
