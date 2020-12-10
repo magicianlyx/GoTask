@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/magicianlyx/GoTask/pool"
+	"GoTask/pool"
 	"math/rand"
 	"time"
 )

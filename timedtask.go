@@ -2,9 +2,9 @@ package GoTaskv1
 
 import (
 	"errors"
-	"github.com/magicianlyx/GoTask/pool"
-	"github.com/magicianlyx/GoTask/structure"
-	"github.com/magicianlyx/GoTask/task"
+	""GoTask/pool"
+	""GoTask/structure"
+	""GoTask/task"
 	"sync"
 	"sync/atomic"
 	"time"

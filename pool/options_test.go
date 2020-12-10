@@ -2,7 +2,7 @@ package pool
 
 import (
 	"fmt"
-	"github.com/magicianlyx/GoTask/utils"
+	"GoTask/utils"
 	"testing"
 )
 

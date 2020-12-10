@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"github.com/magicianlyx/GoTask/utils"
+	"GoTask/utils"
 	"fmt"
 	"math/rand"
 	"testing"
