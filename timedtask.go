@@ -299,6 +299,17 @@ func (tt *TimedTask) IsBan(key string) bool {
 	return b
 }
 
+func (tt *TimedTask) isExist(key string) bool {
+	return tt.tMap.IsExist(key)
+}
+
+func (tt *TimedTask) IsExist(key string) bool {
+	tt.l.RLock()
+	b := tt.isExist(key)
+	tt.l.RUnlock()
+	return b
+}
+
 func (tt *TimedTask) goExecutor() {
 	for i := 0; i < int(tt.routineCount); i++ {
 		go func(rid int) {
@@ -316,15 +327,15 @@ func (tt *TimedTask) goExecutor() {
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
-					
+
 					// 如果没有下一次的执行计划 那么将会清除任务
 					if !ti.HasNextExecute() {
 						tt.tMap.Delete(ti.Key)
 					}
-					
+
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, pool.GoroutineUID(rid))
-					
+
 				}
 			}
 		}(i)
@@ -335,9 +346,9 @@ func (tt *TimedTask) goExecutorV2(maxRoutineCount int) {
 	options := &pool.Options{
 		GoroutineLimit: maxRoutineCount,
 	}
-	
+
 	grd := pool.NewGoroutinePool(options)
-	
+
 	go func() {
 		tt.wg.Add(1)
 		defer tt.wg.Done()
@@ -353,21 +364,21 @@ func (tt *TimedTask) goExecutorV2(maxRoutineCount int) {
 			// 构成一个任务
 			task := func(gid pool.GoroutineUID) {
 				if tt.tMap.Get(ti.Key) != nil {
-					
+
 					// 执行任务
 					res, err := ti.Task()
 					ti.LastResult = &task.TaskResult{res, err}
-					
+
 					// 如果没有下一次的执行计划 那么将会清除任务
 					if !ti.HasNextExecute() {
 						tt.tMap.Delete(ti.Key)
 					}
-					
+
 					// 执行回调
 					tt.invokeExecuteCallback(ti, res, err, gid)
 				}
 			}
-			
+
 			// 向动态线程池派发一个任务
 			grd.Put(task)
 		}
@@ -389,7 +400,7 @@ func (tt *TimedTask) goTimedIssue() {
 					return
 				}
 			}
-			
+
 			var ticker = time.NewTicker(spec)
 			select {
 			case <-ticker.C:
